@@ -12,6 +12,7 @@ import { getKlines, subscribeToTicker } from '../../services/binance';
 import { calculateSMA, calculateEMA } from '../../utils/indicators';
 import { calculateHeikinAshi } from '../../utils/chartUtils';
 import { intervalToSeconds } from '../../utils/timeframes';
+import { AlertAdapter } from '../../plugins/line-tools-adapter/AlertAdapter';
 
 import { LineToolManager, PriceScaleTimer } from '../../plugins/line-tools/line-tools.js';
 import '../../plugins/line-tools/line-tools.css';
@@ -89,6 +90,7 @@ const ChartComponent = forwardRef(({
     const emaSeriesRef = useRef(null);
     const chartReadyRef = useRef(false); // Track when chart is fully stable and ready for indicator additions
     const lineToolManagerRef = useRef(null);
+    const alertAdapterRef = useRef(null);
     const priceScaleTimerRef = useRef(null); // Ref for the candle countdown timer
     const wsRef = useRef(null);
     const chartTypeRef = useRef(chartType);
@@ -172,64 +174,20 @@ const ChartComponent = forwardRef(({
             if (lineToolManagerRef.current) lineToolManagerRef.current.clearTools();
         },
         addPriceAlert: (alert) => {
-            // Bridge App-level alerts to the line-tools UserPriceAlerts primitive
-            // WITHOUT opening an extra dialog – just create the alert directly.
-            try {
-                const manager = lineToolManagerRef.current;
-                const userAlerts = manager && manager._userPriceAlerts;
-                if (!userAlerts || !alert || alert.price == null) return;
-
-                if (typeof userAlerts.setSymbolName === 'function') {
-                    userAlerts.setSymbolName(symbol);
-                }
-
-                const priceNum = Number(alert.price);
-                if (!Number.isFinite(priceNum)) return;
-
-                // Directly add the alert with a simple crossing condition so it
-                // is rendered on the chart without another confirmation dialog.
-                if (typeof userAlerts.addAlertWithCondition === 'function') {
-                    userAlerts.addAlertWithCondition(priceNum, 'crossing');
-                } else if (typeof userAlerts.openEditDialog === 'function') {
-                    // Fallback for older builds: still ensure it works, even if
-                    // it means showing the internal dialog.
-                    userAlerts.openEditDialog(alert.id, {
-                        price: priceNum,
-                        condition: 'crossing',
-                    });
-                }
-            } catch (err) {
-                console.warn('Failed to add price alert to chart', err);
-            }
+            const adapter = alertAdapterRef.current;
+            if (!adapter || !alert || alert.price == null) return;
+            adapter.setSymbol(symbol);
+            adapter.create(alert.price, 'crossing');
         },
         removePriceAlert: (externalId) => {
-            try {
-                const manager = lineToolManagerRef.current;
-                const userAlerts = manager && manager._userPriceAlerts;
-                if (!userAlerts || !externalId) return;
-
-                if (typeof userAlerts.removeAlert === 'function') {
-                    userAlerts.removeAlert(externalId);
-                }
-            } catch (err) {
-                console.warn('Failed to remove price alert from chart', err);
-            }
+            const adapter = alertAdapterRef.current;
+            if (!adapter) return;
+            adapter.remove(externalId);
         },
         restartPriceAlert: (price, condition = 'crossing') => {
-            try {
-                const manager = lineToolManagerRef.current;
-                const userAlerts = manager && manager._userPriceAlerts;
-                if (!userAlerts || price == null) return;
-
-                const priceNum = Number(price);
-                if (!Number.isFinite(priceNum)) return;
-
-                if (typeof userAlerts.addAlertWithCondition === 'function') {
-                    userAlerts.addAlertWithCondition(priceNum, condition === 'crossing' ? 'crossing' : condition);
-                }
-            } catch (err) {
-                console.warn('Failed to restart price alert on chart', err);
-            }
+            const adapter = alertAdapterRef.current;
+            if (!adapter || price == null) return;
+            adapter.create(price, condition === 'crossing' ? 'crossing' : condition);
         },
         resetZoom: () => {
             applyDefaultCandlePosition(dataRef.current.length);
@@ -781,52 +739,40 @@ const ChartComponent = forwardRef(({
             series.attachPrimitive(manager);
             lineToolManagerRef.current = manager;
 
+            // Create AlertAdapter to encapsulate all _userPriceAlerts access
+            const adapter = new AlertAdapter(manager);
+            alertAdapterRef.current = adapter;
 
-            // Ensure alerts primitive (if present) knows the current symbol
-            try {
-                const userAlerts = manager._userPriceAlerts;
-                if (userAlerts && typeof userAlerts.setSymbolName === 'function') {
-                    userAlerts.setSymbolName(symbol);
-                }
+            // Ensure alerts primitive knows the current symbol
+            adapter.setSymbol(symbol);
 
-                // Bridge internal alert list out to React so the Alerts tab
-                // can show alerts created from the chart-side UI.
-                if (userAlerts && typeof userAlerts.alertsChanged === 'function' && typeof userAlerts.alerts === 'function' && typeof onAlertsSync === 'function') {
-                    userAlerts.alertsChanged().subscribe(() => {
-                        try {
-                            const rawAlerts = userAlerts.alerts() || [];
-                            const mapped = rawAlerts.map(a => ({
-                                id: a.id,
-                                price: a.price,
-                                condition: a.condition || 'crossing',
-                                type: a.type || 'price',
-                            }));
-                            onAlertsSync(mapped);
-                        } catch (err) {
-                            console.warn('Failed to sync chart alerts to app', err);
-                        }
-                    }, manager);
-                }
+            // Bridge internal alert list out to React so the Alerts tab
+            // can show alerts created from the chart-side UI.
+            if (typeof onAlertsSync === 'function') {
+                adapter.onChange(() => {
+                    const rawAlerts = adapter.getAll();
+                    const mapped = rawAlerts.map(a => ({
+                        id: a.id,
+                        price: a.price,
+                        condition: a.condition || 'crossing',
+                        type: a.type || 'price',
+                    }));
+                    onAlertsSync(mapped);
+                }, manager);
+            }
 
-                // Also bridge trigger events so the app can mark alerts as Triggered
-                // and write log entries when the internal primitive fires.
-                if (userAlerts && typeof userAlerts.alertTriggered === 'function' && typeof onAlertTriggered === 'function') {
-                    userAlerts.alertTriggered().subscribe((evt) => {
-                        try {
-                            onAlertTriggered({
-                                externalId: evt.alertId,
-                                price: evt.alertPrice,
-                                timestamp: evt.timestamp,
-                                direction: evt.direction,
-                                condition: evt.condition,
-                            });
-                        } catch (err) {
-                            console.warn('Failed to propagate alertTriggered event to app', err);
-                        }
-                    }, manager);
-                }
-            } catch (err) {
-                console.warn('Failed to initialize alert symbol name', err);
+            // Also bridge trigger events so the app can mark alerts as Triggered
+            // and write log entries when the internal primitive fires.
+            if (typeof onAlertTriggered === 'function') {
+                adapter.onTrigger((evt) => {
+                    onAlertTriggered({
+                        externalId: evt.alertId,
+                        price: evt.alertPrice,
+                        timestamp: evt.timestamp,
+                        direction: evt.direction,
+                        condition: evt.condition,
+                    });
+                }, manager);
             }
 
             window.lineToolManager = manager;
