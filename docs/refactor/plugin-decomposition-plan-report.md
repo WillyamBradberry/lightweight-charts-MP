@@ -1,27 +1,44 @@
-Generated `libs/MP-charts-toolkit/docs/refactor/plugin-decomposition-plan.md` — a comprehensive decomposition plan for the 6,495-line `line-tools.js` plugin.
+Сгенерирован пересмотренный план декомпозиции: `libs/MP-charts-toolkit/docs/refactor/plugin-decomposition-plan-report.md`
 
-**Document contents:**
+## Ключевые результаты анализа:
 
-1. **Executive Summary** with key metrics (6,495 lines total, ~6,138 extractable, ~357 to delete)
-2. **Target folder structure** — 12 subsystems across ~10 folders under `src/plugins/line-tools/`
-3. **Subsystem Analysis** for all 12 subsystems with:
-   - Source line ranges and class/function mappings
-   - Estimated extracted line counts per file
-   - Dependency analysis
-   - TypeScript public interfaces (code blocks)
-   - Extraction difficulty (LOW/MEDIUM/HIGH)
-   - TypeScript migration difficulty
+### Учёт существующих компонентов проекта:
+- **AlertsPanel.jsx** (`src/components/Alerts/`) — уже существует, НЕ дублировать
+- **DrawingToolbar.jsx** (`src/components/Toolbar/`) — уже существует
+- **Toast.jsx** (`src/components/Toast/`) — уже существует
+- **AlertAdapter.js** (`src/plugins/line-tools-adapter/`) — уже существует как мост
 
-4. **Upstream Comparison Analysis** — three tables:
-   - Code already in `lightweight-charts-line-tools-core` to reuse as-is
-   - MP-UNIQUE components not found upstream
-   - Code recommended for DELETION (upstream-provided or redundant)
+### 7 новых plugin-пакетов (flat architecture):
+1. `line-tools-geometry/` — геометрия (coordinate mapping, distance calc, intersection)
+2. `line-tools-renderers/` — рендереры (если нужны MP-specific расширения)
+3. `line-tools-templates/` — шаблоны инструментов (localStorage)
+4. `line-tools-alerts-core/` — ядро алертов (Li, Di, dt классы)
+5. `line-tools-callouts-core/` — бейджи вызовов
+6. `line-tools-nav-core/` — навигационные контролы
+7. `line-tools/` — ядро интеграции (обёртка над upstream API)
 
-5. **Migration Priority Matrix** (P0→P7 phases)
-6. **Phase-by-phase Migration Strategy** with file lists
-7. **Rollout Order Summary** — 17 steps
-8. **Risk Assessment** with severity and mitigation strategies
+### Upstream vs MP-UNIQUE:
+| В upstream | MP-UNIQUE |
+|-----------|-----------|
+| createLineToolsPlugin() | Alert system (Li, Di, Hi) |
+| EventEmitter / InteractionManager | Navigation toolbar (Oi) |
+| Coordinate mapping (`T`) | Callout badges (Bi, Fi, zi) |
+| Рендереры (si, li, ci, pi) | Long/Short position tool (Jt/Kt) |
+| Geometry utilities | Price Range visualizer (Lt) |
+| Tool registry | Template system (ot) |
 
-**MP-UNIQUE components identified:** alerts, navigation toolbar, callout badges, dt alert checker, long-short position tool, price-range visualizer, template system (7 unique subsystems)
+### Рекомендации по удалению:
+- Duplicate coordinate mapping (`T`) — использовать upstream
+- Inline CSS constants → экспортировать в `src/styles/line-tools.css`
+- Event emitter code (`H`) — использовать upstream EventEmitter
+- `mt` style helper — inline где нужно
 
-**Upstream-provided to reuse:** event emitter H class, coordinate mapping T function, basic renderers si/li/ci/pi, style injection utilities, LineToolType enum, createLineToolsPlugin factory
+### 4 фазы миграции (P0→P5):
+1. **P0**: types, validators, styles
+2. **P1–P2**: geometry, templates, callout/navigation UI
+3. **P3–P4**: alerts-core, renderers
+4. **P5**: tool adapters
+
+### Миграция CSS:
+- НЕ инжектировать через JS
+- Экспортировать в `src/styles/*.css` файлы
