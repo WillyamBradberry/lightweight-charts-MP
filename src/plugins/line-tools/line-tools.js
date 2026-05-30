@@ -4199,7 +4199,7 @@ class Di extends Li {
         hoverColor: "#50535E",
         crosshairLabelIcon: Ci
       } : null,
-      color: "#131722",
+      color: "#5d8794",
       crosshair: s ? {
         y: e.y,
         text: r
