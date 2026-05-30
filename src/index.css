@@ -21,22 +21,22 @@
 
 /* Light Theme */
 [data-theme="light"] {
-  --tv-color-platform-background: #ffffff;
-  --tv-color-pane-background: #ffffff;
-  --tv-color-toolbar-background: #f8f9fa;
-  --tv-color-toolbar-button-background-hover: #e8e9eb;
-  --tv-color-toolbar-button-text: #434651;
-  --tv-color-toolbar-button-text-hover: #131722;
+  --tv-color-platform-background: #131722;
+  --tv-color-pane-background: #131722;
+  --tv-color-toolbar-background: #131722;
+  --tv-color-toolbar-button-background-hover: #2A2E39;
+  --tv-color-toolbar-button-text: #B2B5BE;
+  --tv-color-toolbar-button-text-hover: #F0F3FA;
   --tv-color-toolbar-button-text-active: #2962FF;
   --tv-color-item-active-text: #2962FF;
-  --tv-color-border: #e0e3eb;
-  --tv-color-text-primary: #131722;
+  --tv-color-border: #2A2E39;
+  --tv-color-text-primary: #D1D4DC;
   --tv-color-text-secondary: #787B86;
   --tv-color-brand: #2962FF;
   --tv-color-up: #089981;
   --tv-color-down: #F23645;
-  --tv-color-dropdown-background: #ffffff;
-  --tv-color-input-background: #f8f9fa;
+  --tv-color-dropdown-background: #1e222d;
+  --tv-color-input-background: #131722;
 }
 
 body {

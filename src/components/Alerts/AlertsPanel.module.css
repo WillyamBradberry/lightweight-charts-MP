@@ -114,7 +114,7 @@
 
 .status.active {
     color: #089981;
-    background-color: rgba(8, 153, 129, 0.12);
+    background-color: rgb(245, 5, 125); /*editor */
 }
 
 .status.triggered {
