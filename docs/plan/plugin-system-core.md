@@ -1,20 +1,20 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                    PLUGIN SYSTEM (Core)                      │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐   │
-│  │ UI Plugin   │ │ Theme Plugin│ │ Connection Plugin   │   │
-│  │ Manager     │ │ Manager     │ │ Manager             │   │
+│  │      UI Plugin   │ │ Theme Plugin │ │      Connection Plugin   │   │
+│  │    Manager     │ │     Manager     │ │           Manager             │   │
 │  └──────┬──────┘ └──────┬──────┘ └──────────┬──────────┘   │
 │         │               │                    │              │
 │         ▼               ▼                    ▼              │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │         PLUGIN REGISTRY & API HOST                   │   │
-│  │  (динамическая загрузка/выгрузка, версионирование)   │   │
+│  │                           PLUGIN REGISTRY & API HOST                     │   │
+│  │    (динамическая загрузка/выгрузка, версионирование)   │   │
 │  └─────────────────────────┬───────────────────────────┘   │
 └────────────────────────────┼───────────────────────────────┘
-                             │
+                           │
 ┌────────────────────────────┼───────────────────────────────┐
-│                    SHELL LAYER (сохраняем)                  │
-│  Layout  Topbar  DrawingToolbar  BottomBar  Watchlist ...  │
+│                                           SHELL LAYER (сохраняем)                         │
+│          Layout  Topbar  DrawingToolbar  BottomBar  Watchlist ...         │
 ├────────────────────────────┼───────────────────────────────┤
 │                    CHART ENGINE                             │
 │  ChartComponent ──► PluginAdapter ──► line-tools.js        │
