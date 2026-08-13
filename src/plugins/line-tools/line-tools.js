@@ -78,7 +78,7 @@ function O(h, t) {
 }
 function v(h, t, e, i = "#FFFFFF", s = "#2962FF") {
   const o = h.context;
-  o.fillStyle = i, o.strokeStyle = s, o.lineWidth = 2, o.beginPath(), o.arc(t, e, 6 * h.horizontalPixelRatio, 0, 2 * Math.PI), o.fill(), o.stroke();
+  o.fillStyle = i, o.strokeStyle = s, o.lineWidth = 2, o.beginPath(), o.arc(t, e, 3 * h.horizontalPixelRatio, 0, 2 * Math.PI), o.fill(), o.stroke();
 }
 function m(h, t) {
   return Math.round(h * t);
@@ -390,7 +390,7 @@ function pe(h, t) {
 }
 function de(h, t, e, i = "#FFFFFF", s = "#2962FF") {
   const o = h.context;
-  o.fillStyle = i, o.strokeStyle = s, o.lineWidth = 2, o.beginPath(), o.arc(t, e, 6 * h.horizontalPixelRatio, 0, 2 * Math.PI), o.fill(), o.stroke();
+  o.fillStyle = i, o.strokeStyle = s, o.lineWidth = 2, o.beginPath(), o.arc(t, e, 3 * h.horizontalPixelRatio, 0, 2 * Math.PI), o.fill(), o.stroke();
 }
 function ue(h, t) {
   return Math.round(h * t);

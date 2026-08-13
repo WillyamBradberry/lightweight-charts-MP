@@ -613,5 +613,3 @@ Week 7–9: Phase 2 items 2.3–2.5
 
 Week 10–12: Phase 3–5 (subsystem extraction)
   → Indicator engine, data provider, facade, topbar decomposition, provider pattern.
-
-Total estimated effort: 10–12 weeks for complete refactor.

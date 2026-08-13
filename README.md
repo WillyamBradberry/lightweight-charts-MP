@@ -1,5 +1,7 @@
 # MP Charts Toolkit
 
+Original repo is here: https://github.com/WillyamBradberry/lightweight-charts-MP/
+
 **MP Charts Toolkit** is a modular React wrapper (Workstation Shell) designed for building professional trading workstations. Built on top of `lightweight-charts v5`, it provides extended functionality including multi-chart layouts, 40+ drawing tools, bar replay mode, price alert systems, and real-time data integration (Binance).
 
 ---

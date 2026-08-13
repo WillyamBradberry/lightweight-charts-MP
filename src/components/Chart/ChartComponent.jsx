@@ -18,6 +18,13 @@ import { LineToolManager, PriceScaleTimer } from '../../plugins/line-tools/line-
 import '../../plugins/line-tools/line-tools.css';
 import ReplayControls from '../Replay/ReplayControls';
 import ReplaySlider from '../Replay/ReplaySlider';
+import { useChart } from './hooks/useChart';
+import ChartOverlays from './ChartOverlays';
+import ChartWatermark from './ChartWatermark';
+
+
+
+
 
 const TOOL_MAP = {
     'cursor': 'None',
@@ -78,9 +85,12 @@ const ChartComponent = forwardRef(({
     onAlertTriggered,
     onReplayModeChange,
     isDrawingsLocked = false,
-    isDrawingsHidden = false,
+        isDrawingsHidden = false,
     isTimerVisible = false,
+    showWatermark = false,
+    watermarkText = 'MP Charts',
 }, ref) => {
+
     const chartContainerRef = useRef();
     const [isLoading, setIsLoading] = useState(true);
     const isActuallyLoadingRef = useRef(true); // Track if we're actually loading data (not just updating indicators) - start as true on mount
@@ -796,92 +806,30 @@ const ChartComponent = forwardRef(({
         }
     };
 
-    // Initialize chart once on mount
-    useEffect(() => {
-        if (!chartContainerRef.current) return;
+        // Initialize chart using main unifying hook
+        const { chartInstance } = useChart(chartContainerRef, { theme, magnetMode });
 
-        const chart = createChart(chartContainerRef.current, {
-            layout: {
-                textColor: theme === 'dark' ? '#D1D4DC' : '#131722',
-                background: { color: theme === 'dark' ? '#131722' : '#ffffff' },
-            },
-            grid: {
-                vertLines: { color: theme === 'dark' ? '#2A2E39' : '#e0e3eb' },
-                horzLines: { color: theme === 'dark' ? '#2A2E39' : '#e0e3eb' },
-            },
-            crosshair: {
-                mode: magnetMode ? 1 : 0,
-                vertLine: {
-                    width: 1,
-                    color: theme === 'dark' ? '#758696' : '#9598a1',
-                    style: 3,
-                    labelBackgroundColor: theme === 'dark' ? '#758696' : '#9598a1',
-                },
-                horzLine: {
-                    width: 1,
-                    color: theme === 'dark' ? '#758696' : '#9598a1',
-                    style: 3,
-                    labelBackgroundColor: theme === 'dark' ? '#758696' : '#9598a1',
-                },
-            },
-            timeScale: {
-                borderColor: theme === 'dark' ? '#2A2E39' : '#e0e3eb',
-                timeVisible: true,
-            },
-            rightPriceScale: {
-                borderColor: theme === 'dark' ? '#2A2E39' : '#e0e3eb',
-            },
-            handleScroll: {
-                mouseWheel: true,
-                pressedMouseMove: true,
-            },
-            handleScale: {
-                mouseWheel: true,
-                pinch: true,
-            },
-        });
-
-        chartRef.current = chart;
+        useEffect(() => {
 
 
+        if (!chartInstance) return;
 
-        const handleResize = () => {
-            if (chartContainerRef.current) {
-                chart.applyOptions({
-                    width: chartContainerRef.current.clientWidth,
-                    height: chartContainerRef.current.clientHeight,
-                });
-            }
-        };
-
-        const resizeObserver = new ResizeObserver(handleResize);
-        resizeObserver.observe(chartContainerRef.current);
+        chartRef.current = chartInstance;
 
         // Handle Visible Time Range Change (Scrolling/Panning)
         const handleVisibleTimeRangeChange = (newVisibleRange) => {
             if (!newVisibleRange || !mainSeriesRef.current || !dataRef.current || dataRef.current.length === 0) return;
 
-            // Find the index of the last visible candle
-            // We can approximate the index or search for it. Since data is sorted by time:
-            // The 'to' of visible range is a Logical Range index if we use getVisibleLogicalRange, 
-            // but here we get a TimeRange (from/to as Time). 
-            // However, subscribeVisibleLogicalRangeChange is better for index-based access, but let's see what we have.
-            // Actually, let's use the Logical Range from the chart directly as it maps better to array indices.
-
-            const timeScale = chart.timeScale();
+            const timeScale = chartInstance.timeScale();
             const logicalRange = timeScale.getVisibleLogicalRange();
 
             if (logicalRange) {
-                // The 'to' logical index represents the rightmost visible bar.
                 const rawIndex = logicalRange.to;
-                // Use Math.round to align with the visual bar boundary at x.5
                 const lastIndex = Math.min(Math.round(rawIndex), dataRef.current.length - 1);
 
-                // If we are scrolling back, 'to' might be valid.
                 if (lastIndex >= 0) {
                     const candle = dataRef.current[lastIndex];
                     if (candle && priceScaleTimerRef.current) {
-                        // Only update if we have valid open/close
                         if (candle.open !== undefined && candle.close !== undefined) {
                             priceScaleTimerRef.current.updateCandleData(candle.open, candle.close);
                         }
@@ -891,7 +839,7 @@ const ChartComponent = forwardRef(({
         };
 
         // Use Logical Range change for better performance/accuracy mapping to data indices
-        chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
+        chartInstance.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
 
         // Handle right-click to cancel tool
         const handleContextMenu = (event) => {
@@ -901,45 +849,34 @@ const ChartComponent = forwardRef(({
             }
         };
         const container = chartContainerRef.current;
-        container.addEventListener('contextmenu', handleContextMenu, true);
+        if (container) {
+            container.addEventListener('contextmenu', handleContextMenu, true);
+        }
+
+        // Clean up global window references to prevent memory leaks
+        window.chartInstance = chartInstance;
 
         return () => {
-            // Clean up global window references to prevent memory leaks
             window.lineToolManager = null;
             window.chartInstance = null;
             window.seriesInstance = null;
 
             try {
-                chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
+                chartInstance.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
             } catch (e) {
                 console.warn('Failed to unsubscribe visible logical range change', e);
             }
 
             try {
-                container.removeEventListener('contextmenu', handleContextMenu, true);
+                if (container) {
+                    container.removeEventListener('contextmenu', handleContextMenu, true);
+                }
             } catch (error) {
                 console.warn('Failed to remove contextmenu listener', error);
             }
-            try {
-                resizeObserver.disconnect();
-            } catch (error) {
-                console.warn('Failed to disconnect resize observer', error);
-            }
-            try {
-                if (wsRef.current) wsRef.current.close();
-            } catch (error) {
-                console.warn('Failed to close chart WebSocket', error);
-            }
-            try {
-                chart.remove();
-            } catch (error) {
-                console.warn('Failed to remove chart instance', error);
-            } finally {
-                chartRef.current = null;
-                // Refs managed by other effects (lineToolManagerRef, mainSeriesRef) are cleared in their own cleanup functions
-            }
         };
-    }, []); // Only create chart once
+    }, [chartInstance, onToolUsed]);
+
 
     // Re-create main series when chart type changes
     useEffect(() => {
@@ -1027,7 +964,7 @@ const ChartComponent = forwardRef(({
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chartType, symbol]);
+    }, [chartType, symbol, chartInstance]);
 
     // Load data when symbol/interval changes
     useEffect(() => {
@@ -1196,7 +1133,7 @@ const ChartComponent = forwardRef(({
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [symbol, interval]);
+    }, [symbol, interval, chartInstance]);
 
     const emaLastValueRef = useRef(null);
 
@@ -1322,18 +1259,9 @@ const ChartComponent = forwardRef(({
         }
     }, [indicators, updateIndicators]);
 
-    // Handle Magnet Mode
-    useEffect(() => {
-        if (chartRef.current) {
-            chartRef.current.applyOptions({
-                crosshair: {
-                    mode: magnetMode ? 1 : 0,
-                },
-            });
-        }
-    }, [magnetMode]);
+        // Handle Magnet Mode - REMOVED, handled by useChartOptions
+    // Handle Theme Changes - REMOVED, handled by useChartOptions
 
-    // OHLC Header Bar - Subscribe to crosshair move
     useEffect(() => {
         if (!chartRef.current || !mainSeriesRef.current) return;
 
@@ -1411,7 +1339,7 @@ const ChartComponent = forwardRef(({
                 }
             }
         };
-    }, [symbol, interval]); // Re-subscribe when symbol/interval changes
+    }, [symbol, interval, chartInstance]); // Re-subscribe when symbol/interval changes
 
 
 
@@ -1479,41 +1407,12 @@ const ChartComponent = forwardRef(({
             cancelled = true;
             abortController.abort();
         };
-    }, [comparisonSymbols, interval, isLogScale, isAutoScale]);
+    }, [comparisonSymbols, interval, isLogScale, isAutoScale, chartInstance]);
 
-    // Handle Theme Changes
-    useEffect(() => {
-        if (chartRef.current) {
-            chartRef.current.applyOptions({
-                layout: {
-                    textColor: theme === 'dark' ? '#D1D4DC' : '#131722',
-                    background: { color: theme === 'dark' ? '#131722' : '#ffffff' },
-                },
-                grid: {
-                    vertLines: { color: theme === 'dark' ? '#2A2E39' : '#e0e3eb' },
-                    horzLines: { color: theme === 'dark' ? '#2A2E39' : '#e0e3eb' },
-                },
-                crosshair: {
-                    vertLine: {
-                        color: theme === 'dark' ? '#758696' : '#9598a1',
-                        labelBackgroundColor: theme === 'dark' ? '#758696' : '#9598a1',
-                    },
-                    horzLine: {
-                        color: theme === 'dark' ? '#758696' : '#9598a1',
-                        labelBackgroundColor: theme === 'dark' ? '#758696' : '#9598a1',
-                    },
-                },
-                timeScale: {
-                    borderColor: theme === 'dark' ? '#2A2E39' : '#e0e3eb',
-                },
-                rightPriceScale: {
-                    borderColor: theme === 'dark' ? '#2A2E39' : '#e0e3eb',
-                },
-            });
-        }
-    }, [theme]);
+        // Handle Theme Changes - REMOVED, handled by useChartOptions
 
     // Handle Time Range
+
     useEffect(() => {
         if (chartRef.current && timeRange && !isLoading) {
             const now = Math.floor(Date.now() / 1000);
@@ -2040,14 +1939,24 @@ const ChartComponent = forwardRef(({
                 id="container"
                 ref={chartContainerRef}
                 className={styles.chartContainer}
-                style={{
+                                style={{
                     position: 'relative',
                     touchAction: 'none'
                 }}
             />
-            {isLoading && isActuallyLoadingRef.current && <div className={styles.loadingOverlay}><div className={styles.spinner}></div><div>Loading...</div></div>}
+            
+            <ChartOverlays 
+                isLoading={isLoading} 
+                isActuallyLoading={isActuallyLoadingRef.current} 
+            />
+
+            <ChartWatermark 
+                showWatermark={showWatermark}
+                watermarkText={watermarkText}
+            />
 
             {/* OHLC Header Bar */}
+
             {ohlcData && (
                 <div className={styles.ohlcHeader} style={{ left: isToolbarVisible ? '55px' : '10px' }}>
                     <span className={styles.ohlcSymbol}>{symbol} · {interval.toUpperCase()}</span>
