@@ -113,25 +113,12 @@ export * from './utils/text-helpers';
 export * from './utils/culling-helpers';
 
 // Re-export the base class for those who will be creating their own individual line tool plugins.
-export { BaseLineTool } from './model/base-line-tool';
-
-export { AnchorPoint, LineAnchorRenderer, LineAnchorRendererData  } from './rendering/line-anchor-renderer';
-
-export {
-    SegmentRenderer,
-    SegmentRendererData,
-    PolygonRenderer,
-    PolygonRendererData,
-    RectangleRenderer,
-    RectangleRendererData,
-    TextRenderer,
-    CircleRenderer,
-    CircleRendererData,
-	BoxSize,
-	LinesInfo,   
-    FontInfo,
-    InternalData,
-} from './rendering/generic-renderers';
+export { SegmentRenderer, SegmentRendererData } from './rendering/segment-renderer';
+export { PolygonRenderer, PolygonRendererData } from './rendering/polygon-renderer';
+export { RectangleRenderer, RectangleRendererData } from './rendering/rectangle-renderer';
+export { CircleRenderer, CircleRendererData } from './rendering/circle-renderer';
+export { TextRenderer } from './rendering/text-renderer';
+export { BoxSize, LinesInfo, FontInfo, InternalData } from './rendering/text-renderer-types';
 
 export { CompositeRenderer } from './rendering/composite-renderer';
 export { LineToolPaneView } from './views/line-tool-pane-view';

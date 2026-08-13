@@ -8,7 +8,8 @@ import { IChartApiBase, ISeriesApi, SeriesType, IPaneApi } from 'lightweight-cha
 import { BaseLineTool } from '../model/base-line-tool';
 import { LineAnchorRenderer, LineAnchorRendererData } from '../rendering/line-anchor-renderer';
 import { DeepPartial } from '../utils/helpers';
-import { RectangleRenderer, TextRenderer } from '../rendering/generic-renderers';
+import { RectangleRenderer } from '../rendering/rectangle-renderer';
+import { TextRenderer } from '../rendering/text-renderer';
 
 
 
