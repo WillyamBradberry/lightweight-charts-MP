@@ -1,15 +1,6 @@
 // /src/model/base-line-tool.ts
 
-/**
- * This file defines the abstract BaseLineTool class.
- * It serves as the foundation for all individual line drawing tools, encapsulating common
- * properties, state management, and essential methods for coordinate conversion and interaction.
- *
- * It implements the `ISeriesPrimitive` interface, making any of its subclasses a valid
- * plugin for a Lightweight Charts series. Its primary role is to abstract away the
- * complexities of the v5 plugin system, providing a consistent and simpler API for
- * individual tool implementations.
- */
+// BaseLineTool: common model for line drawing tools and adapter to LWC ISeriesPrimitive.
 import {
 	IChartApiBase,
 	ISeriesApi,
@@ -53,21 +44,14 @@ import { Point, interpolateTimeFromLogicalIndex, interpolateLogicalIndexFromTime
 import { LineToolsCorePlugin } from '../core-plugin';
 import { PriceDataSource } from './price-data-source';
 // Imports for the LineTool specific axis views
-import { LineToolPriceAxisLabelView } from '../views/line-tool-price-axis-label-view';
-import { LineToolTimeAxisLabelView } from '../views/line-tool-time-axis-label-view';
 import { PriceAxisLabelStackingManager } from './price-axis-label-stacking-manager';
+import { createLineToolAxisViews } from '../views/axis-label-views';
+import { convertPointToScreenPoint, convertScreenPointToPoint } from '../utils/geometry/convert';
+import { resolveCursorForHit } from '../utils/geometry/hit-cursor';
+import { getPaneHeightForSeries } from '../utils/geometry/pane-utils';
 
 
-/**
- * The abstract base class for all line drawing tools in the plugin.
- *
- * This class extends {@link PriceDataSource} and implements the Lightweight Charts `ISeriesPrimitive`
- * interface. It provides a common set of properties, utility methods for coordinate conversion,
- * state management (selection, hover, editing), and hooks for custom behavior (hit-testing, constraints).
- * All custom line tool implementations must extend this class.
- *
- * @typeParam HorzScaleItem - The type of the horizontal scale item (e.g., `Time` or `number`).
- */
+/** Abstract base class for line drawing tools. */
 export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzScaleItem> implements ISeriesPrimitive<HorzScaleItem> {
 	// Abstract properties that must be defined by child classes
 	// These properties are now set in the constructor from subclass arguments
@@ -139,18 +123,9 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 	 *     const result = getToolCullingState(this.points(), this, this.options().line.extend);
 	 *     this._setIsCulled(result !== OffScreenState.Visible);
 	 * }
-	 * ```
-	 * 
-	 * @protected
-	 * @returns void
-	 */
-	protected updateCullingState(): void {
-		/**
-		 * Default implementation is a no-op.
-		 * This allows tools to be "always visible" by default, or allows for 
-		 * a gradual migration of culling logic from Pane Views to the Model.
-		 */
-	}
+ 	 */
+	/** Update internal culling state (default: no-op). */
+	protected updateCullingState(): void {}
 
 	/**
 	 * Provides an array of price axis view components to Lightweight Charts for rendering the tool's labels.
@@ -256,44 +231,15 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 		// Adapt our internal HitTestResult to ISeriesPrimitive's expected PrimitiveHoveredItem
 		//console.log(`[BaseLineTool] Internal hitTest returned: Type=${internalResult.type()}, Data=${JSON.stringify(internalResult.data())}`); 
 
-		const hitData = internalResult.data();
-		let cursorStyle: PaneCursorType = PaneCursorType.Default; 
-		if (hitData?.suggestedCursor) {
-			cursorStyle = hitData.suggestedCursor; // Use the specific cursor suggested by the hit
-			//console.log(`[BaseLineTool] Using suggestedCursor from hitData: ${cursorStyle}`);
-		} else {
-			// Fallback to tool options or generic defaults if no specific suggestedCursor is provided by hitData
-			const options = this.options();
-			switch (internalResult.type()) {
-				case HitTestType.MovePointBackground:
-					// Use tool's defaultDragCursor or a generic 'grabbing'
-					cursorStyle = options.defaultDragCursor || PaneCursorType.Grabbing;
-					//console.log(`[BaseLineTool] Using defaultDragCursor: ${cursorStyle}`);
-					break;
-				case HitTestType.MovePoint:
-				case HitTestType.Regular:
-					// Use tool's defaultHoverCursor or a generic 'pointer'
-					cursorStyle = options.defaultHoverCursor || PaneCursorType.Pointer;
-					//console.log(`[BaseLineTool] Using defaultHoverCursor: ${cursorStyle}`);
-					break;
-				case HitTestType.ChangePoint:
-					// For anchor points, a generic resize cursor if not specifically set elsewhere
-					cursorStyle = PaneCursorType.DiagonalNwSeResize; // Example, can be refined.
-					//console.log(`[BaseLineTool] Using generic DiagonalNwSeResize for ChangePoint.`);
-					break;
-				default:
-					cursorStyle = PaneCursorType.Default;
-					//console.log(`[BaseLineTool] Using PaneCursorType.Default as fallback.`);
-					break;
-			}
-		}
+		const options = this.options();
+		const cursorStyle = resolveCursorForHit(internalResult as any, { defaultDragCursor: options.defaultDragCursor, defaultHoverCursor: options.defaultHoverCursor });
 
 		// Return the PrimitiveHoveredItem.
 		//console.log(`[BaseLineTool] Final cursor selected for PrimitiveHoveredItem: ${cursorStyle}`);
 		return {
 			externalId: this.id(), // Return the unique ID of the tool
 			zOrder: 'normal', // Default zOrder for line tools
-			cursorStyle: cursorStyle, // NEW: Use the determined cursorStyle
+			cursorStyle: cursorStyle,
 		};
 	}
 
@@ -333,22 +279,7 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 
 	private _attachedPane: IPaneApi<HorzScaleItem> | null = null; 
 
-	/**
-	 * Initializes the Base Line Tool instance.
-	 *
-	 * Sets up core references, assigns the unique ID, and creates the persistent Price and Time Axis View instances
-	 * based on the tool's required `pointsCount`.
-	 *
-	 * @param coreApi - The core plugin instance.
-	 * @param chart - The chart API instance.
-	 * @param series - The series API instance this tool is attached to.
-	 * @param horzScaleBehavior - The horizontal scale behavior for time conversion utilities.
-	 * @param finalOptions - The complete and final configuration options for the tool instance.
-	 * @param points - Initial array of logical points.
-	 * @param toolType - The specific string identifier for the tool.
-	 * @param pointsCount - The fixed number of points this tool requires (`-1` for unbounded).
-	 * @param priceAxisLabelStackingManager - The manager for label collision resolution.
-	 */
+	/** Construct the base tool and create persistent axis views for bounded tools. */
 	public constructor(
 		coreApi: LineToolsCorePlugin<HorzScaleItem>,
 		chart: IChartApiBase<HorzScaleItem>,
@@ -382,14 +313,10 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 			this._options.magnetThreshold = 0;
 		}
 
-		// *** NEW LOGIC: Create persistent axis views here ***
-		// If pointsCount is -1 (dynamic), we will handle view creation inside updateAllViews.
-		if (this.pointsCount !== -1) {
-			for (let i = 0; i < this.pointsCount; i++) {
-				this._priceAxisLabelViews[i] = new LineToolPriceAxisLabelView(this, i, this._chart, this._priceAxisLabelStackingManager);
-				this._timeAxisLabelViews[i] = new LineToolTimeAxisLabelView(this, i, this._chart);
-			}
-		}
+		// Create persistent axis views via helper (keeps constructor concise).
+		const axisViews = createLineToolAxisViews(this, this._chart, this._priceAxisLabelStackingManager, this.pointsCount);
+		this._priceAxisLabelViews = axisViews.price as unknown as IPriceAxisView[];
+		this._timeAxisLabelViews = axisViews.time as unknown as ITimeAxisView[];
 
 	}
 
@@ -1038,22 +965,7 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 	 * @returns A Point with screen coordinates, or null.
 	 */
 	public pointToScreenPoint(point: LineToolPoint): Point | null {
-		// 1. Resolve the Logical Index (float) for the timestamp.
-		const logicalIndex = interpolateLogicalIndexFromTime(this._chart, this._series, point.timestamp as UTCTimestamp);
-		if (logicalIndex === null) return null;
-
-		// 2. Convert Index to X-pixel using our unified helper.
-		const x = logicalIndexToCoordinate(this._chart.timeScale(), logicalIndex);
-
-		// 3. Convert Price to Y-pixel.
-		const y = this._series.priceToCoordinate(point.price);
-
-		// 4. Final Validation.
-		if (x === null || y === null || !isFinite(x) || isNaN(x) || isNaN(y)) {
-			return null;
-		}
-
-		return new Point(x, y);
+		return convertPointToScreenPoint(this._chart, this._series, point);
 	}	
 
 	/**
@@ -1066,33 +978,9 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 	 * @returns A logical {@link LineToolPoint}, or `null` if conversion fails.
 	 */
 	public screenPointToPoint(point: Point): LineToolPoint | null {
-		const timeScale = this._chart.timeScale();
-		const rawPrice = this._series.coordinateToPrice(point.y as Coordinate);
-
-		// Get the logical index from the screen X coordinate.
-		const logical = timeScale.coordinateToLogical(point.x as Coordinate);
-		
-		if (logical === null || rawPrice === null) {
-			return null;
-		}
-
-		// --- INTERJECTED ROUNDING LOGIC ---
 		const options = this._series.options() as any;
 		const minMove = options?.priceFormat?.minMove || 0.01;
-		const finalPrice = roundPriceToStep(rawPrice as number, minMove);
-
-		// Use our interpolation function to get a timestamp from the logical index.
-		const interpolatedTime = interpolateTimeFromLogicalIndex(this._chart, this._series, logical);
-
-		if (interpolatedTime === null) {
-			console.warn(`[BaseLineTool] screenPointToPoint: Could not determine interpolated time for screen point: ${JSON.stringify(point)}.`);
-			return null;
-		}
-
-		return {
-			timestamp: this._horzScaleBehavior.key(interpolatedTime as HorzScaleItem) as number,
-			price: finalPrice,
-		};
+		return convertScreenPointToPoint(this._chart, this._series, this._horzScaleBehavior, point, minMove);
 	}	
 
 	/**
@@ -1148,9 +1036,9 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 
 		// Unregister all price axis labels associated with this tool from the stacking manager
 		this._priceAxisLabelViews.forEach(view => {
-			if (view instanceof LineToolPriceAxisLabelView) {
-				// The ID used for registration is toolId + '-p' + pointIndex (see LineToolPriceAxisLabelView)
-				this._priceAxisLabelStackingManager.unregisterLabel(this.id() + '-p' + view.getPointIndex());
+			const anyView = view as any;
+			if (typeof anyView.getPointIndex === 'function') {
+				this._priceAxisLabelStackingManager.unregisterLabel(this.id() + '-p' + anyView.getPointIndex());
 			}
 		});
 		// Trigger a stacking update to re-flow remaining labels after this tool's labels are removed
@@ -1354,12 +1242,7 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 	 * @returns The specific pane height in pixels.
 	 */
 	public getChartDrawingHeight(): number {
-		const layout = this._coreApi.getLayout();
-		
-		// Find the specific pane in the snapshot that contains this tool's series
-		const myPane = layout.panes.find(p => p.series.indexOf(this._series) !== -1);
-		
-		// Return the specific height, or 0 if not found (e.g. during a series move)
-		return myPane ? myPane.height : 0;
+		// Delegate to helper for clarity
+		return getPaneHeightForSeries(this._coreApi, this._series);
 	}
 }
