@@ -1,3 +1,5 @@
+import { createLineToolsPlugin } from '@mp/line-tools-core';
+
 /**
  * LineToolsCoreAdapter — Minimal adapter for the @mp/line-tools-core plugin.
  *
@@ -43,8 +45,7 @@ export class LineToolsCoreAdapter {
     }
 
     try {
-      // Import the core line tools plugin
-      const { createLineToolsPlugin } = require('@mp/line-tools-core');
+      // Create the core line tools plugin instance
 
       this._corePlugin = createLineToolsPlugin(this._chart, this._series);
 
