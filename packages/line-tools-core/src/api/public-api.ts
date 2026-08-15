@@ -90,6 +90,11 @@ export interface LineToolsDoubleClickEventParams {
 export interface LineToolsAfterEditEventParams {
 	selectedLineTool: LineToolExport<LineToolType>;
 	stage: 'lineToolEdited' | 'pathFinished' | 'lineToolFinished';
+	// Optional metadata about how the edit/finalization was triggered
+	meta?: {
+		mouseButton?: number;
+		[extra: string]: any;
+	};
 }
 
 /**

@@ -3,7 +3,7 @@
 import { Coordinate, Logical, Nominal } from 'lightweight-charts';
 import { Point } from '../utils/geometry';
 
-export { Coordinate, Logical, Nominal } from 'lightweight-charts';
+export type { Coordinate, Logical, Nominal } from 'lightweight-charts';
 export { Point } from '../utils/geometry';
 
 /**

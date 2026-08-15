@@ -1,0 +1,33 @@
+{
+  "name": "@mp/line-tools-lines",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Line drawing tools (TrendLine, Ray, ExtendedLine, HorizontalLine, VerticalLine, CrossLine) built on @mp/line-tools-core.",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "build:dev": "tsup --watch --sourcemap",
+    "clean": "rimraf dist"
+  },
+  "peerDependencies": {
+    "lightweight-charts": "^5.0.0",
+    "@mp/line-tools-core": "^2.0.0-alpha.0"
+  },
+  "devDependencies": {
+    "@mp/line-tools-core": "file:../line-tools-core",
+    "lightweight-charts": "^5.0.9",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.0",
+    "rimraf": "^6.0.1"
+  }
+}

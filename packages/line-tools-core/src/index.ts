@@ -117,11 +117,13 @@ export { SegmentRenderer, SegmentRendererData } from './rendering/segment-render
 export { PolygonRenderer, PolygonRendererData } from './rendering/polygon-renderer';
 export { RectangleRenderer, RectangleRendererData } from './rendering/rectangle-renderer';
 export { CircleRenderer, CircleRendererData } from './rendering/circle-renderer';
+export { AnchorPoint, LineAnchorRenderer, LineAnchorRendererData } from './rendering/line-anchor-renderer';
 export { TextRenderer } from './rendering/text-renderer';
 export { BoxSize, LinesInfo, FontInfo, InternalData } from './rendering/text-renderer-types';
 
 export { CompositeRenderer } from './rendering/composite-renderer';
 export { LineToolPaneView } from './views/line-tool-pane-view';
+export { BaseLineTool } from './model/base-line-tool';
 export { DataSource } from './model/data-source';
 export { PriceDataSource } from './model/price-data-source';
 export { PriceAxisLabelStackingManager } from './model/price-axis-label-stacking-manager';

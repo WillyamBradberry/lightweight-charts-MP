@@ -303,6 +303,7 @@ this._eventBus.fireSingleClickEvent(tool, selectionState);
 
 public fireAfterEditEvent(tool: BaseLineTool<HorzScaleItem>, stage: 'lineToolEdited' | 'pathFinished' | 'lineToolFinished'): void {
 this._eventBus.fireAfterEditEvent(tool, stage);
+	
 }
 
 public getPriceAxisLabelStackingManager(): PriceAxisLabelStackingManager<HorzScaleItem> {
