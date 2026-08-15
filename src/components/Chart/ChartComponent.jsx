@@ -13,6 +13,8 @@ import { calculateSMA, calculateEMA } from '../../utils/indicators';
 import { calculateHeikinAshi } from '../../utils/chartUtils';
 import { intervalToSeconds } from '../../utils/timeframes';
 import { AlertAdapter } from '../../plugins/line-tools-adapter/AlertAdapter';
+import { FEATURE_FLAGS, useCoreLineTools } from '../../config/flags';
+import { createLineToolsAdapter, registerPriorityTools } from '../../plugins/line-tools-core-adapter';
 
 import { LineToolManager, PriceScaleTimer } from '../../plugins/line-tools/line-tools.js';
 import '../../plugins/line-tools/line-tools.css';
@@ -21,10 +23,6 @@ import ReplaySlider from '../Replay/ReplaySlider';
 import { useChart } from './hooks/useChart';
 import ChartOverlays from './ChartOverlays';
 import ChartWatermark from './ChartWatermark';
-
-
-
-
 
 const TOOL_MAP = {
     'cursor': 'None',
@@ -62,8 +60,8 @@ const TOOL_MAP = {
     'price_range': 'PriceRange',
     'date_price_range': 'DatePriceRange',
     'measure': 'Measure',
-    'zoom_in': 'None', // Zoom handled separately via click handler
-    'zoom_out': 'None', // Zoom handled separately via click handler
+    'zoom_in': 'None',
+    'zoom_out': 'None',
     'remove': 'None'
 };
 
@@ -85,7 +83,7 @@ const ChartComponent = forwardRef(({
     onAlertTriggered,
     onReplayModeChange,
     isDrawingsLocked = false,
-        isDrawingsHidden = false,
+    isDrawingsHidden = false,
     isTimerVisible = false,
     showWatermark = false,
     watermarkText = 'MP Charts',
@@ -93,15 +91,15 @@ const ChartComponent = forwardRef(({
 
     const chartContainerRef = useRef();
     const [isLoading, setIsLoading] = useState(true);
-    const isActuallyLoadingRef = useRef(true); // Track if we're actually loading data (not just updating indicators) - start as true on mount
+    const isActuallyLoadingRef = useRef(true);
     const chartRef = useRef(null);
     const mainSeriesRef = useRef(null);
     const smaSeriesRef = useRef(null);
     const emaSeriesRef = useRef(null);
-    const chartReadyRef = useRef(false); // Track when chart is fully stable and ready for indicator additions
+    const chartReadyRef = useRef(false);
     const lineToolManagerRef = useRef(null);
     const alertAdapterRef = useRef(null);
-    const priceScaleTimerRef = useRef(null); // Ref for the candle countdown timer
+    const priceScaleTimerRef = useRef(null);
     const wsRef = useRef(null);
     const chartTypeRef = useRef(chartType);
     const dataRef = useRef([]);
@@ -109,21 +107,21 @@ const ChartComponent = forwardRef(({
 
     // Replay State
     const [isReplayMode, setIsReplayMode] = useState(false);
-    const isReplayModeRef = useRef(false); // Ref to track replay mode in callbacks
+    const isReplayModeRef = useRef(false);
     useEffect(() => { isReplayModeRef.current = isReplayMode; }, [isReplayMode]);
 
     const [isPlaying, setIsPlaying] = useState(false);
     const [replaySpeed, setReplaySpeed] = useState(1);
     const [replayIndex, setReplayIndex] = useState(null);
     const [isSelectingReplayPoint, setIsSelectingReplayPoint] = useState(false);
-    const fullDataRef = useRef([]); // Store full data for replay
+    const fullDataRef = useRef([]);
     const replayIntervalRef = useRef(null);
-    const fadedSeriesRef = useRef(null); // Store faded series for future candles
+    const fadedSeriesRef = useRef(null);
 
-    // Refs for stable callbacks to prevent race conditions
+    // Refs for stable callbacks
     const replayIndexRef = useRef(null);
     const isPlayingRef = useRef(false);
-    const updateReplayDataRef = useRef(null); // Ref to store updateReplayData function
+    const updateReplayDataRef = useRef(null);
     useEffect(() => { replayIndexRef.current = replayIndex; }, [replayIndex]);
     useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
@@ -154,14 +152,13 @@ const ChartComponent = forwardRef(({
         }
 
         chartRef.current.priceScale('right').applyOptions({ autoScale: true });
-        if (lineToolManagerRef.current) {
+        if (lineToolManagerRef.current && typeof lineToolManagerRef.current.setDefaultRange === 'function') {
             lineToolManagerRef.current.setDefaultRange({ from, to });
         }
     };
 
     // Axis Label State
     const [axisLabel, setAxisLabel] = useState(null);
-
     const isChartVisibleRef = useRef(true);
 
     // OHLC Header Bar State
@@ -174,14 +171,20 @@ const ChartComponent = forwardRef(({
     // Expose undo/redo and line tool manager to parent
     useImperativeHandle(ref, () => ({
         undo: () => {
-            if (lineToolManagerRef.current) lineToolManagerRef.current.undo();
+            if (lineToolManagerRef.current && typeof lineToolManagerRef.current.undo === 'function') {
+                lineToolManagerRef.current.undo();
+            }
         },
         redo: () => {
-            if (lineToolManagerRef.current) lineToolManagerRef.current.redo();
+            if (lineToolManagerRef.current && typeof lineToolManagerRef.current.redo === 'function') {
+                lineToolManagerRef.current.redo();
+            }
         },
         getLineToolManager: () => lineToolManagerRef.current,
         clearTools: () => {
-            if (lineToolManagerRef.current) lineToolManagerRef.current.clearTools();
+            if (lineToolManagerRef.current && typeof lineToolManagerRef.current.clearTools === 'function') {
+                lineToolManagerRef.current.clearTools();
+            }
         },
         addPriceAlert: (alert) => {
             const adapter = alertAdapterRef.current;
@@ -215,10 +218,9 @@ const ChartComponent = forwardRef(({
                 const isVisible = priceScaleTimerRef.current.isVisible();
                 priceScaleTimerRef.current.setVisible(!isVisible);
 
-                // Toggle native price label: hide when our timer is shown, show when hidden
                 if (mainSeriesRef.current) {
                     mainSeriesRef.current.applyOptions({
-                        lastValueVisible: isVisible // If timer WAS visible, it IS NOW hidden, so show native label
+                        lastValueVisible: isVisible
                     });
                 }
 
@@ -230,21 +232,18 @@ const ChartComponent = forwardRef(({
             setIsReplayMode(prev => {
                 const newMode = !prev;
                 if (!prev) {
-                    // Entering replay mode
                     fullDataRef.current = [...dataRef.current];
                     setIsPlaying(false);
                     isPlayingRef.current = false;
                     const startIndex = Math.max(0, dataRef.current.length - 1);
                     setReplayIndex(startIndex);
                     replayIndexRef.current = startIndex;
-                    // Initialize replay data display - show all candles initially
                     setTimeout(() => {
                         if (updateReplayDataRef.current) {
                             updateReplayDataRef.current(startIndex, false);
                         }
                     }, 0);
                 } else {
-                    // Exiting replay mode
                     stopReplay();
                     setIsPlaying(false);
                     isPlayingRef.current = false;
@@ -252,7 +251,6 @@ const ChartComponent = forwardRef(({
                     replayIndexRef.current = null;
                     setIsSelectingReplayPoint(false);
 
-                    // Clean up faded series (if we were using it)
                     if (fadedSeriesRef.current && chartRef.current) {
                         try {
                             chartRef.current.removeSeries(fadedSeriesRef.current);
@@ -262,8 +260,6 @@ const ChartComponent = forwardRef(({
                         fadedSeriesRef.current = null;
                     }
 
-
-                    // Restore full data
                     if (mainSeriesRef.current && fullDataRef.current.length > 0) {
                         dataRef.current = fullDataRef.current;
                         const transformedData = transformData(fullDataRef.current, chartTypeRef.current);
@@ -272,7 +268,6 @@ const ChartComponent = forwardRef(({
                     }
                 }
 
-                // Notify parent about replay mode change
                 if (onReplayModeChange) {
                     setTimeout(() => onReplayModeChange(newMode), 0);
                 }
@@ -282,7 +277,6 @@ const ChartComponent = forwardRef(({
         }
     }));
 
-    // Helper function for zooming the chart
     const zoomChart = useCallback((zoomIn = true) => {
         if (!chartRef.current) return;
 
@@ -296,7 +290,6 @@ const ChartComponent = forwardRef(({
             const rangeSize = to - from;
             const center = (from + to) / 2;
 
-            // Zoom in shrinks the visible range by 20%, zoom out expands by 25%
             const zoomFactor = zoomIn ? 0.8 : 1.25;
             const newRangeSize = rangeSize * zoomFactor;
 
@@ -310,116 +303,85 @@ const ChartComponent = forwardRef(({
         }
     }, []);
 
-    // Handle active tool change
     useEffect(() => {
         if (lineToolManagerRef.current && activeTool) {
-            // Handle special action tools that don't use startTool
             const manager = lineToolManagerRef.current;
 
-            // Lock All Drawings - SET state based on App's state
             if (activeTool === 'lock_all') {
-                // Don't toggle here - the App.jsx already toggled its state
-                // We just need to ensure LineToolManager is in sync
-                // The useEffect below handles the sync
-                // Reset to cursor after action
                 if (onToolUsed) onToolUsed();
                 return;
             }
 
-            // Hide All Drawings - SET state based on App's state
             if (activeTool === 'hide_drawings') {
-                // Don't toggle here - the App.jsx already toggled its state
-                // We just need to ensure LineToolManager is in sync
-                // The useEffect below handles the sync
-                // Reset to cursor after action
                 if (onToolUsed) onToolUsed();
                 return;
             }
 
-            // Clear All Drawings - remove all drawings
             if (activeTool === 'clear_all') {
                 if (typeof manager.clearTools === 'function') {
                     manager.clearTools();
-
                 }
-                // Reset to cursor after action
                 if (onToolUsed) onToolUsed();
                 return;
             }
 
-            // Show Timer - toggle timer visibility (handled by useEffect below)
             if (activeTool === 'show_timer') {
-                // Timer visibility is synced via the isTimerVisible prop
-                // Reset to cursor after action
                 if (onToolUsed) onToolUsed();
                 return;
             }
-
 
             const mappedTool = TOOL_MAP[activeTool] || 'None';
 
+            console.log(`[Chart] activeTool=${activeTool} mapped=${mappedTool}`);
 
-            if (lineToolManagerRef.current && typeof lineToolManagerRef.current.startTool === 'function') {
-                lineToolManagerRef.current.startTool(mappedTool);
-
+            if (typeof manager.startTool === 'function') {
+                manager.startTool(mappedTool);
             }
         }
     }, [activeTool, onToolUsed]);
 
-    // Sync drawings lock state from props to LineToolManager
     useEffect(() => {
         if (!lineToolManagerRef.current) return;
         const manager = lineToolManagerRef.current;
 
-        // Get current state from LineToolManager
         const currentlyLocked = typeof manager.areDrawingsLocked === 'function'
             ? manager.areDrawingsLocked()
             : false;
 
-        // Only update if state differs
         if (isDrawingsLocked !== currentlyLocked) {
             if (isDrawingsLocked) {
                 if (typeof manager.lockAllDrawings === 'function') {
                     manager.lockAllDrawings();
-
                 }
             } else {
                 if (typeof manager.unlockAllDrawings === 'function') {
                     manager.unlockAllDrawings();
-
                 }
             }
         }
     }, [isDrawingsLocked]);
 
-    // Sync drawings visibility state from props to LineToolManager
     useEffect(() => {
         if (!lineToolManagerRef.current) return;
         const manager = lineToolManagerRef.current;
 
-        // Get current state from LineToolManager
         const currentlyHidden = typeof manager.areDrawingsHidden === 'function'
             ? manager.areDrawingsHidden()
             : false;
 
-        // Only update if state differs
         if (isDrawingsHidden !== currentlyHidden) {
             if (isDrawingsHidden) {
                 if (typeof manager.hideAllDrawings === 'function') {
                     manager.hideAllDrawings();
-
                 }
             } else {
                 if (typeof manager.showAllDrawings === 'function') {
                     manager.showAllDrawings();
-
                 }
             }
         }
     }, [isDrawingsHidden]);
 
-    // Sync timer visibility state from props to PriceScaleTimer
-    // Sync timer visibility state from props to PriceScaleTimer
     useEffect(() => {
         if (!priceScaleTimerRef.current) return;
         const timer = priceScaleTimerRef.current;
@@ -427,17 +389,14 @@ const ChartComponent = forwardRef(({
         if (typeof timer.setVisible === 'function') {
             timer.setVisible(isTimerVisible);
 
-            // Toggle native price label: hide when our timer is shown, show when hidden
-            // This ensures they are mutually exclusive
             if (mainSeriesRef.current) {
                 mainSeriesRef.current.applyOptions({
-                    lastValueVisible: !isTimerVisible // Show native label only when timer is HIDDEN
+                    lastValueVisible: !isTimerVisible
                 });
             }
         }
     }, [isTimerVisible]);
 
-    // Handle zoom clicks on chart (both zoom-in and zoom-out)
     useEffect(() => {
         const isZoomIn = activeTool === 'zoom_in';
         const isZoomOut = activeTool === 'zoom_out';
@@ -445,17 +404,14 @@ const ChartComponent = forwardRef(({
         if ((!isZoomIn && !isZoomOut) || !chartContainerRef.current) return;
 
         const handleZoomClick = (e) => {
-            // Only handle left clicks
             if (e.button !== 0) return;
             zoomChart(isZoomIn);
         };
 
-        // Handle ESC key to exit zoom mode
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 if (onToolUsed) onToolUsed();
-
             }
         };
 
@@ -463,7 +419,6 @@ const ChartComponent = forwardRef(({
         container.addEventListener('click', handleZoomClick);
         window.addEventListener('keydown', handleKeyDown);
 
-        // Change cursor based on zoom direction
         container.style.cursor = isZoomIn ? 'zoom-in' : 'zoom-out';
 
         return () => {
@@ -473,9 +428,6 @@ const ChartComponent = forwardRef(({
         };
     }, [activeTool, zoomChart, onToolUsed]);
 
-
-
-    // Track chart visibility to avoid unnecessary RAF work
     useEffect(() => {
         if (!chartContainerRef.current) return undefined;
 
@@ -502,7 +454,6 @@ const ChartComponent = forwardRef(({
         };
     }, []);
 
-    // Update Axis Label Position and Content
     const updateAxisLabel = useCallback(() => {
         if (!chartRef.current || !mainSeriesRef.current || !chartContainerRef.current) return;
 
@@ -534,7 +485,6 @@ const ChartComponent = forwardRef(({
         try {
             let labelText = price.toFixed(2);
 
-            // Handle Percentage Mode Label
             if (comparisonSymbols.length > 0) {
                 const timeScale = chartRef.current.timeScale();
                 const visibleRange = timeScale.getVisibleLogicalRange();
@@ -558,7 +508,7 @@ const ChartComponent = forwardRef(({
             const newLabel = {
                 top: coordinate,
                 price: labelText,
-                symbol: comparisonSymbols.length > 0 ? symbol : null, // Only show symbol if in comparison mode
+                symbol: comparisonSymbols.length > 0 ? symbol : null,
                 color: color
             };
 
@@ -571,9 +521,8 @@ const ChartComponent = forwardRef(({
         } catch (err) {
             console.error('Error in updateAxisLabel:', err);
         }
-    }, [comparisonSymbols]);
+    }, [comparisonSymbols, symbol]);
 
-    // Helper to update OHLC from latest candle data (for real-time updates)
     const updateOhlcFromLatest = useCallback(() => {
         if (dataRef.current && dataRef.current.length > 0) {
             const lastData = dataRef.current[dataRef.current.length - 1];
@@ -593,8 +542,6 @@ const ChartComponent = forwardRef(({
         }
     }, []);
 
-    // RAF Loop for smooth updates
-    // RAF Loop for smooth updates - pauses when not visible to save CPU/battery
     useEffect(() => {
         let animationFrameId;
         let isRunning = true;
@@ -606,12 +553,10 @@ const ChartComponent = forwardRef(({
                 updateAxisLabel();
                 animationFrameId = requestAnimationFrame(animate);
             }
-            // Don't schedule next frame if not visible - will resume on visibility change
         };
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible' && isChartVisibleRef.current && isRunning) {
-                // Resume animation when tab becomes visible again
                 animationFrameId = requestAnimationFrame(animate);
             }
         };
@@ -626,9 +571,6 @@ const ChartComponent = forwardRef(({
         };
     }, [updateAxisLabel]);
 
-
-
-    // Helper to transform OHLC data based on chart type
     const transformData = (data, type) => {
         if (!data || data.length === 0) return [];
 
@@ -644,7 +586,6 @@ const ChartComponent = forwardRef(({
         }
     };
 
-    // Create appropriate series based on chart type
     const createSeries = (chart, type, title = '') => {
         const commonOptions = { lastValueVisible: true, priceScaleId: 'right', title: title };
 
@@ -720,78 +661,74 @@ const ChartComponent = forwardRef(({
         }
     };
 
-    // Keep track of active tool for the wrapper
     const activeToolRef = useRef(activeTool);
     useEffect(() => {
         activeToolRef.current = activeTool;
     }, [activeTool]);
 
-    // Initialize LineToolManager when series is ready
     const initializeLineTools = (series) => {
         if (!lineToolManagerRef.current) {
-            const manager = new LineToolManager();
+            if (!useCoreLineTools()) {
+                const manager = new LineToolManager();
 
-            // Wrap startTool to detect when tool is cancelled/finished
-            const originalStartTool = manager.startTool.bind(manager);
-            manager.startTool = (tool) => {
+                const originalStartTool = manager.startTool.bind(manager);
+                manager.startTool = (tool) => {
+                    originalStartTool(tool);
 
-                originalStartTool(tool);
+                    const isZoomTool = activeToolRef.current === 'zoom_in' || activeToolRef.current === 'zoom_out';
+                    if ((tool === 'None' || tool === null) && activeToolRef.current !== null && activeToolRef.current !== 'cursor' && !isZoomTool) {
+                        if (onToolUsed) onToolUsed();
+                    }
+                };
 
-                // If tool is None, it means we are back to cursor mode
-                // But don't trigger onToolUsed for zoom tools since they handle their own state
-                const isZoomTool = activeToolRef.current === 'zoom_in' || activeToolRef.current === 'zoom_out';
-                if ((tool === 'None' || tool === null) && activeToolRef.current !== null && activeToolRef.current !== 'cursor' && !isZoomTool) {
+                series.attachPrimitive(manager);
+                lineToolManagerRef.current = manager;
 
-                    if (onToolUsed) onToolUsed();
+                const adapter = new AlertAdapter(manager);
+                alertAdapterRef.current = adapter;
+                adapter.setSymbol(symbol);
+
+                if (typeof onAlertsSync === 'function') {
+                    adapter.onChange(() => {
+                        const rawAlerts = adapter.getAll();
+                        const mapped = rawAlerts.map(a => ({
+                            id: a.id,
+                            price: a.price,
+                            condition: a.condition || 'crossing',
+                            type: a.type || 'price',
+                        }));
+                        onAlertsSync(mapped);
+                    }, manager);
                 }
-            };
 
-            series.attachPrimitive(manager);
-            lineToolManagerRef.current = manager;
+                if (typeof onAlertTriggered === 'function') {
+                    adapter.onTrigger((evt) => {
+                        onAlertTriggered({
+                            externalId: evt.alertId,
+                            price: evt.alertPrice,
+                            timestamp: evt.timestamp,
+                            direction: evt.direction,
+                            condition: evt.condition,
+                        });
+                    }, manager);
+                }
 
-            // Create AlertAdapter to encapsulate all _userPriceAlerts access
-            const adapter = new AlertAdapter(manager);
-            alertAdapterRef.current = adapter;
+                window.lineToolManager = manager;
+                window.chartInstance = chartRef.current;
+                window.seriesInstance = series;
+            } else {
+                // CORE path (USE_CORE_LINE_TOOLS=true): use the @mp/line-tools-core adapter.
+                const coreAdapter = createLineToolsAdapter(chartRef.current, series);
+                coreAdapter.init(registerPriorityTools);
+                lineToolManagerRef.current = coreAdapter;
 
-            // Ensure alerts primitive knows the current symbol
-            adapter.setSymbol(symbol);
-
-            // Bridge internal alert list out to React so the Alerts tab
-            // can show alerts created from the chart-side UI.
-            if (typeof onAlertsSync === 'function') {
-                adapter.onChange(() => {
-                    const rawAlerts = adapter.getAll();
-                    const mapped = rawAlerts.map(a => ({
-                        id: a.id,
-                        price: a.price,
-                        condition: a.condition || 'crossing',
-                        type: a.type || 'price',
-                    }));
-                    onAlertsSync(mapped);
-                }, manager);
+                window.lineToolManager = coreAdapter;
+                window.chartInstance = chartRef.current;
+                window.seriesInstance = series;
             }
-
-            // Also bridge trigger events so the app can mark alerts as Triggered
-            // and write log entries when the internal primitive fires.
-            if (typeof onAlertTriggered === 'function') {
-                adapter.onTrigger((evt) => {
-                    onAlertTriggered({
-                        externalId: evt.alertId,
-                        price: evt.alertPrice,
-                        timestamp: evt.timestamp,
-                        direction: evt.direction,
-                        condition: evt.condition,
-                    });
-                }, manager);
-            }
-
-            window.lineToolManager = manager;
-            window.chartInstance = chartRef.current;
-            window.seriesInstance = series;
         }
     };
 
-    // Initialize PriceScaleTimer when series is ready
     const initializePriceScaleTimer = (series, intervalSeconds) => {
         if (!priceScaleTimerRef.current) {
             const timer = new PriceScaleTimer({
@@ -806,17 +743,13 @@ const ChartComponent = forwardRef(({
         }
     };
 
-        // Initialize chart using main unifying hook
-        const { chartInstance } = useChart(chartContainerRef, { theme, magnetMode });
+    const { chartInstance } = useChart(chartContainerRef, { theme, magnetMode });
 
-        useEffect(() => {
-
-
+    useEffect(() => {
         if (!chartInstance) return;
 
         chartRef.current = chartInstance;
 
-        // Handle Visible Time Range Change (Scrolling/Panning)
         const handleVisibleTimeRangeChange = (newVisibleRange) => {
             if (!newVisibleRange || !mainSeriesRef.current || !dataRef.current || dataRef.current.length === 0) return;
 
@@ -838,12 +771,10 @@ const ChartComponent = forwardRef(({
             }
         };
 
-        // Use Logical Range change for better performance/accuracy mapping to data indices
         chartInstance.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
 
-        // Handle right-click to cancel tool
         const handleContextMenu = (event) => {
-            event.preventDefault(); // Prevent default right-click menu
+            event.preventDefault();
             if (activeToolRef.current && activeToolRef.current !== 'cursor') {
                 if (onToolUsed) onToolUsed();
             }
@@ -853,7 +784,6 @@ const ChartComponent = forwardRef(({
             container.addEventListener('contextmenu', handleContextMenu, true);
         }
 
-        // Clean up global window references to prevent memory leaks
         window.chartInstance = chartInstance;
 
         return () => {
@@ -877,8 +807,6 @@ const ChartComponent = forwardRef(({
         };
     }, [chartInstance, onToolUsed]);
 
-
-    // Re-create main series when chart type changes
     useEffect(() => {
         if (!chartRef.current) {
             return;
@@ -890,7 +818,6 @@ const ChartComponent = forwardRef(({
         mainSeriesRef.current = replacementSeries;
         initializeLineTools(replacementSeries);
 
-        // Re-attach timer to the new series when chart type changes
         if (priceScaleTimerRef.current) {
             try {
                 replacementSeries.attachPrimitive(priceScaleTimerRef.current);
@@ -906,17 +833,14 @@ const ChartComponent = forwardRef(({
             applyDefaultCandlePosition(existingData.length);
             updateAxisLabel();
 
-            // Re-apply active tool to the new manager
             if (activeTool && activeTool !== 'cursor') {
                 const mappedTool = TOOL_MAP[activeTool] || 'None';
                 if (lineToolManagerRef.current && typeof lineToolManagerRef.current.startTool === 'function') {
                     lineToolManagerRef.current.startTool(mappedTool);
-
                 }
             }
         }
 
-        // Recreate faded series if in replay mode
         if (isReplayMode && fadedSeriesRef.current) {
             try {
                 chart.removeSeries(fadedSeriesRef.current);
@@ -925,7 +849,6 @@ const ChartComponent = forwardRef(({
             }
             fadedSeriesRef.current = null;
 
-            // Trigger replay data update to recreate faded series with new type
             if (replayIndex !== null) {
                 updateReplayData(replayIndex);
             }
@@ -933,7 +856,6 @@ const ChartComponent = forwardRef(({
 
         return () => {
             if (lineToolManagerRef.current) {
-
                 try {
                     lineToolManagerRef.current.clearTools();
                 } catch (err) {
@@ -949,13 +871,10 @@ const ChartComponent = forwardRef(({
                 lineToolManagerRef.current = null;
             }
 
-
-
             if (mainSeriesRef.current) {
                 try {
                     chart.removeSeries(mainSeriesRef.current);
                 } catch (e) {
-                    // Ignore 'Value is undefined' which happens during strict mode cleanup
                     if (e.message !== 'Value is undefined') {
                         console.warn('Error removing series:', e);
                     }
@@ -966,19 +885,15 @@ const ChartComponent = forwardRef(({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chartType, symbol, chartInstance]);
 
-    // Load data when symbol/interval changes
     useEffect(() => {
         if (!chartRef.current) return;
 
-        // Capture current zoom level (visible bar count) before fetching new data
-        // This prevents the chart from resetting to the default narrow zoom on every interval change
         let preservedCandleWindow = DEFAULT_CANDLE_WINDOW;
         try {
             const timeScale = chartRef.current.timeScale();
             const range = timeScale.getVisibleLogicalRange();
             if (range) {
                 const count = range.to - range.from;
-                // Only preserve if it's a reasonable number (e.g., > 5 candles)
                 if (count > 5 && Number.isFinite(count)) {
                     preservedCandleWindow = count;
                 }
@@ -998,7 +913,7 @@ const ChartComponent = forwardRef(({
 
         const loadData = async () => {
             isActuallyLoadingRef.current = true;
-            chartReadyRef.current = false; // Reset chart ready state when loading new data
+            chartReadyRef.current = false;
             setIsLoading(true);
 
             try {
@@ -1011,16 +926,12 @@ const ChartComponent = forwardRef(({
                     const transformedData = transformData(data, activeType);
                     mainSeriesRef.current.setData(transformedData);
 
-                    // Mark chart as ready immediately after data is set
-                    // This allows indicators to be added without delay
                     chartReadyRef.current = true;
 
-                    // Initialize the candle countdown timer
                     const intervalSeconds = intervalToSeconds(interval);
                     if (!priceScaleTimerRef.current && mainSeriesRef.current && Number.isFinite(intervalSeconds) && intervalSeconds > 0) {
                         initializePriceScaleTimer(mainSeriesRef.current, intervalSeconds);
                     } else if (priceScaleTimerRef.current && Number.isFinite(intervalSeconds) && intervalSeconds > 0) {
-                        // Update timer timeframe if interval changed
                         priceScaleTimerRef.current.applyOptions({ timeframeSeconds: intervalSeconds });
                     }
 
@@ -1094,7 +1005,6 @@ const ChartComponent = forwardRef(({
                             updateAxisLabel();
                             updateOhlcFromLatest();
 
-                            // Update timer color immediately with latest candle data
                             if (priceScaleTimerRef.current) {
                                 priceScaleTimerRef.current.updateCandleData(normalizedCandle.open, normalizedCandle.close);
                             }
@@ -1143,7 +1053,6 @@ const ChartComponent = forwardRef(({
         const lastIndex = data.length - 1;
         const lastDataPoint = data[lastIndex];
 
-        // SMA Indicator
         if (indicators.sma && smaSeriesRef.current) {
             if (data.length < 20) {
                 const smaData = calculateSMA(data, 20);
@@ -1158,7 +1067,6 @@ const ChartComponent = forwardRef(({
             }
         }
 
-        // EMA Indicator
         if (indicators.ema && emaSeriesRef.current) {
             if (data.length < 20 || emaLastValueRef.current === null) {
                 const emaData = calculateEMA(data, 20);
@@ -1178,14 +1086,9 @@ const ChartComponent = forwardRef(({
     const updateIndicators = useCallback((data, indicatorsConfig) => {
         if (!chartRef.current) return;
 
-        // If chart is not ready yet (still in initial load), defer indicator series creation
-        // This prevents flicker caused by addSeries() during visibility transitions
         const canAddSeries = chartReadyRef.current;
 
-
-        // SMA Indicator
         if (indicatorsConfig.sma) {
-            // Only create series if chart is ready, otherwise just calculate data for later
             if (!smaSeriesRef.current && canAddSeries) {
                 smaSeriesRef.current = chartRef.current.addSeries(LineSeries, {
                     color: '#2962FF',
@@ -1195,7 +1098,6 @@ const ChartComponent = forwardRef(({
                     lastValueVisible: false
                 });
             }
-            // Set data if series exists
             if (smaSeriesRef.current && typeof calculateSMA === 'function') {
                 const smaData = calculateSMA(data, 20);
                 if (smaData && smaData.length > 0) {
@@ -1209,9 +1111,7 @@ const ChartComponent = forwardRef(({
             }
         }
 
-        // EMA Indicator
         if (indicatorsConfig.ema) {
-            // Only create series if chart is ready, otherwise just calculate data for later
             if (!emaSeriesRef.current && canAddSeries) {
                 emaSeriesRef.current = chartRef.current.addSeries(LineSeries, {
                     color: '#FF6D00',
@@ -1221,7 +1121,6 @@ const ChartComponent = forwardRef(({
                     lastValueVisible: false
                 });
             }
-            // Set data if series exists
             if (emaSeriesRef.current && typeof calculateEMA === 'function') {
                 const emaData = calculateEMA(data, 20);
                 if (emaData && emaData.length > 0) {
@@ -1234,18 +1133,14 @@ const ChartComponent = forwardRef(({
                 emaSeriesRef.current = null;
             }
         }
-    }, []); // Empty dependency array - indicators passed as parameter
+    }, []);
 
-    // Separate effect for indicators to prevent data reload
     useEffect(() => {
-        // Reset EMA last value when indicators change
         emaLastValueRef.current = null;
 
         if (dataRef.current.length > 0) {
-            // Update indicators with current data
             try {
                 updateIndicators(dataRef.current, indicators);
-                // Update EMA last value if EMA series exists
                 if (emaSeriesRef.current && dataRef.current.length >= 20) {
                     const emaData = calculateEMA(dataRef.current, 20);
                     if (emaData && emaData.length > 0) {
@@ -1259,18 +1154,13 @@ const ChartComponent = forwardRef(({
         }
     }, [indicators, updateIndicators]);
 
-        // Handle Magnet Mode - REMOVED, handled by useChartOptions
-    // Handle Theme Changes - REMOVED, handled by useChartOptions
-
     useEffect(() => {
         if (!chartRef.current || !mainSeriesRef.current) return;
 
         const handleCrosshairMove = (param) => {
-            // Show last candle data when not hovering (mouse left chart or no data at position)
             const isNotHovering = !param || !param.point || !param.seriesData || param.seriesData.size === 0;
 
             if (isNotHovering || !mainSeriesRef.current) {
-                // Show last candle data when not hovering
                 if (dataRef.current && dataRef.current.length > 0) {
                     const lastData = dataRef.current[dataRef.current.length - 1];
                     const prevData = dataRef.current.length > 1 ? dataRef.current[dataRef.current.length - 2] : null;
@@ -1292,7 +1182,6 @@ const ChartComponent = forwardRef(({
 
             const data = param.seriesData.get(mainSeriesRef.current);
             if (data && data.open !== undefined) {
-                // Find previous candle for change calculation
                 const currentIndex = dataRef.current.findIndex(d => d.time === data.time);
                 const prevData = currentIndex > 0 ? dataRef.current[currentIndex - 1] : null;
                 const change = prevData ? data.close - prevData.close : 0;
@@ -1312,7 +1201,6 @@ const ChartComponent = forwardRef(({
 
         chartRef.current.subscribeCrosshairMove(handleCrosshairMove);
 
-        // Initialize with last candle data
         if (dataRef.current && dataRef.current.length > 0) {
             const lastData = dataRef.current[dataRef.current.length - 1];
             const prevData = dataRef.current.length > 1 ? dataRef.current[dataRef.current.length - 2] : null;
@@ -1339,11 +1227,8 @@ const ChartComponent = forwardRef(({
                 }
             }
         };
-    }, [symbol, interval, chartInstance]); // Re-subscribe when symbol/interval changes
+    }, [symbol, interval, chartInstance]);
 
-
-
-    // Handle Comparison Symbols
     useEffect(() => {
         if (!chartRef.current) return;
 
@@ -1353,7 +1238,6 @@ const ChartComponent = forwardRef(({
         const currentSymbols = new Set(comparisonSymbols.map(s => s.symbol));
         const activeSeries = comparisonSeriesRefs.current;
 
-        // Remove series that are no longer in comparisonSymbols
         activeSeries.forEach((series, sym) => {
             if (!currentSymbols.has(sym)) {
                 try {
@@ -1365,7 +1249,6 @@ const ChartComponent = forwardRef(({
             }
         });
 
-        // Add new series with cancellation support
         const loadComparisonData = async (comp) => {
             if (activeSeries.has(comp.symbol)) return;
 
@@ -1379,7 +1262,6 @@ const ChartComponent = forwardRef(({
 
             try {
                 const data = await getKlines(comp.symbol, interval, 1000, abortController.signal);
-                // Check if still valid before setting data
                 if (cancelled || !activeSeries.has(comp.symbol)) return;
                 if (data && data.length > 0) {
                     const transformedData = data.map(d => ({ time: d.time, value: d.close }));
@@ -1394,8 +1276,6 @@ const ChartComponent = forwardRef(({
 
         comparisonSymbols.forEach(comp => loadComparisonData(comp));
 
-        // Update Price Scale Mode
-        // 0: Normal, 1: Log, 2: Percentage
         const mode = comparisonSymbols.length > 0 ? 2 : (isLogScale ? 1 : 0);
 
         chartRef.current.priceScale('right').applyOptions({
@@ -1408,10 +1288,6 @@ const ChartComponent = forwardRef(({
             abortController.abort();
         };
     }, [comparisonSymbols, interval, isLogScale, isAutoScale, chartInstance]);
-
-        // Handle Theme Changes - REMOVED, handled by useChartOptions
-
-    // Handle Time Range
 
     useEffect(() => {
         if (chartRef.current && timeRange && !isLoading) {
@@ -1450,7 +1326,6 @@ const ChartComponent = forwardRef(({
         }
     }, [timeRange, isLoading]);
 
-    // Replay Logic
     const stopReplay = () => {
         if (replayIntervalRef.current) {
             clearInterval(replayIntervalRef.current);
@@ -1458,14 +1333,11 @@ const ChartComponent = forwardRef(({
         }
     };
 
-    // Define updateReplayData first since other functions depend on it
     const updateReplayData = useCallback((index, hideFeature = true, preserveView = false) => {
         if (!mainSeriesRef.current || !fullDataRef.current || !chartRef.current) return;
 
-        // Clamp index to valid range
         const clampedIndex = Math.max(0, Math.min(index, fullDataRef.current.length - 1));
 
-        // Store current visible range if we need to preserve it
         let currentVisibleRange = null;
         if (preserveView && chartRef.current) {
             try {
@@ -1479,22 +1351,18 @@ const ChartComponent = forwardRef(({
         const pastData = fullDataRef.current.slice(0, clampedIndex + 1);
 
         if (hideFeature) {
-            // Hide future candles - show only past data
             dataRef.current = pastData;
             const transformedData = transformData(pastData, chartTypeRef.current);
             mainSeriesRef.current.setData(transformedData);
         } else {
-            // Show all candles (for preview mode)
             dataRef.current = fullDataRef.current;
             const transformedData = transformData(fullDataRef.current, chartTypeRef.current);
             mainSeriesRef.current.setData(transformedData);
         }
 
-        // Update indicators only with past data
         updateIndicators(pastData, indicators);
         updateAxisLabel();
 
-        // Update timer with latest candle data from replay to ensure correct color
         if (priceScaleTimerRef.current && pastData.length > 0) {
             const lastCandle = pastData[pastData.length - 1];
             if (lastCandle && lastCandle.open !== undefined && lastCandle.close !== undefined) {
@@ -1502,10 +1370,8 @@ const ChartComponent = forwardRef(({
             }
         }
 
-        // Update ref to keep in sync
         replayIndexRef.current = clampedIndex;
 
-        // Restore visible range if we're preserving the view
         if (preserveView && currentVisibleRange && chartRef.current) {
             try {
                 setTimeout(() => {
@@ -1516,9 +1382,8 @@ const ChartComponent = forwardRef(({
                 // Ignore errors
             }
         }
-    }, []);
+    }, [indicators, updateAxisLabel, updateIndicators]);
 
-    // Store updateReplayData in ref so it can be accessed from useImperativeHandle
     useEffect(() => {
         updateReplayDataRef.current = updateReplayData;
     }, [updateReplayData]);
@@ -1540,10 +1405,7 @@ const ChartComponent = forwardRef(({
         setIsSelectingReplayPoint(true);
         setIsPlaying(false);
 
-        // Show ALL candles so user can see the full timeline and select a new point
-        // But preserve the current zoom level and position
         if (mainSeriesRef.current && fullDataRef.current && fullDataRef.current.length > 0) {
-            // Store current visible range to preserve zoom level
             let currentVisibleRange = null;
             if (chartRef.current) {
                 try {
@@ -1554,34 +1416,26 @@ const ChartComponent = forwardRef(({
                 }
             }
 
-            // Store current replay index before showing all candles
             const currentReplayIndex = replayIndexRef.current;
 
-            // Show all candles so user can see the full timeline
             dataRef.current = fullDataRef.current;
             const transformedData = transformData(fullDataRef.current, chartTypeRef.current);
             mainSeriesRef.current.setData(transformedData);
             updateIndicators(fullDataRef.current, indicators);
 
-            // Restore the visible range to maintain zoom level
-            // Use setTimeout to ensure data update has completed
             setTimeout(() => {
                 if (chartRef.current && fullDataRef.current && fullDataRef.current.length > 0) {
                     try {
                         const timeScale = chartRef.current.timeScale();
 
-                        // If we have a current visible range, restore it to maintain zoom
                         if (currentVisibleRange && currentVisibleRange.from && currentVisibleRange.to) {
-                            // Restore the exact same range to maintain zoom level
                             timeScale.setVisibleRange(currentVisibleRange);
                         } else if (currentReplayIndex !== null && currentReplayIndex >= 0) {
-                            // No current range, but we have a replay index - show around it
                             const currentIndex = currentReplayIndex;
                             const currentTime = fullDataRef.current[currentIndex]?.time;
 
                             if (currentTime) {
-                                // Use a reasonable default window that matches typical zoom
-                                const DEFAULT_VIEW_WINDOW = 200; // Larger window to avoid zooming in
+                                const DEFAULT_VIEW_WINDOW = 200;
                                 const startIndex = Math.max(0, currentIndex - DEFAULT_VIEW_WINDOW / 2);
                                 const endIndex = Math.min(fullDataRef.current.length - 1, currentIndex + DEFAULT_VIEW_WINDOW / 2);
 
@@ -1593,7 +1447,6 @@ const ChartComponent = forwardRef(({
                                 }
                             }
                         } else {
-                            // No current range or replay index - use fitContent to show all
                             try {
                                 timeScale.fitContent();
                             } catch (e) {
@@ -1607,7 +1460,6 @@ const ChartComponent = forwardRef(({
             }, 50);
         }
 
-        // Change cursor to indicate selection
         if (chartContainerRef.current) {
             chartContainerRef.current.style.cursor = 'crosshair';
         }
@@ -1615,7 +1467,6 @@ const ChartComponent = forwardRef(({
 
     const handleSliderChange = useCallback((index, hideFuture = true) => {
         if (index >= 0 && index < fullDataRef.current.length) {
-            // Stop playback when user manually changes position
             if (isPlayingRef.current) {
                 setIsPlaying(false);
                 isPlayingRef.current = false;
@@ -1627,22 +1478,18 @@ const ChartComponent = forwardRef(({
         }
     }, [updateReplayData]);
 
-    // Playback Effect - Fixed race condition and synchronization
     useEffect(() => {
         if (isPlaying && isReplayMode) {
             stopReplay();
 
-            // When playback starts, ensure we're showing only candles up to current index
-            // Hide future candles immediately
             const currentIndex = replayIndexRef.current;
             if (currentIndex !== null) {
-                updateReplayData(currentIndex, true); // true = hide future candles
+                updateReplayData(currentIndex, true);
             }
 
-            const intervalMs = 1000 / replaySpeed; // 1x = 1 sec, 10x = 0.1 sec
+            const intervalMs = 1000 / replaySpeed;
 
             replayIntervalRef.current = setInterval(() => {
-                // Use ref to get current value and avoid stale closures
                 const currentIndex = replayIndexRef.current;
 
                 if (currentIndex === null || currentIndex >= fullDataRef.current.length - 1) {
@@ -1653,9 +1500,8 @@ const ChartComponent = forwardRef(({
 
                 const nextIndex = currentIndex + 1;
 
-                // Update state and data synchronously - always hide future candles during playback
                 setReplayIndex(nextIndex);
-                updateReplayData(nextIndex, true); // true = hide future candles
+                updateReplayData(nextIndex, true);
             }, intervalMs);
         } else {
             stopReplay();
@@ -1663,9 +1509,6 @@ const ChartComponent = forwardRef(({
         return () => stopReplay();
     }, [isPlaying, isReplayMode, replaySpeed, updateReplayData]);
 
-    // Click Handler for Replay Mode - handles direct chart clicks to jump to a position
-    // Uses chart.subscribeClick which provides accurate param.time
-    // This is separate from the "Jump to Bar" (scissors) handler
     useEffect(() => {
         if (!chartRef.current || !isReplayMode || isSelectingReplayPoint || isPlaying) return;
         if (!mainSeriesRef.current) return;
@@ -1673,29 +1516,21 @@ const ChartComponent = forwardRef(({
         const handleReplayClick = (param) => {
             if (!param) return;
             if (!fullDataRef.current || fullDataRef.current.length === 0) return;
-            // Skip if we're in selecting mode (handled by different handler)
             if (isSelectingReplayPoint) return;
-            // Skip if we're playing (don't interrupt playback with clicks)
             if (isPlayingRef.current) return;
 
             try {
                 let clickedTime = null;
 
-                // Use param.time - this is the most accurate way to get time at click position
                 if (param.time) {
                     clickedTime = param.time;
                 } else if (param.point) {
-                    // Fallback: use coordinate to get time
                     const timeScale = chartRef.current.timeScale();
                     clickedTime = timeScale.coordinateToTime(param.point.x);
                 }
 
                 if (!clickedTime) return;
 
-                // DEBUG: Log the clicked time to verify it's correct
-
-
-                // Find the closest candle in FULL data to the clicked time
                 let clickedIndex = -1;
                 let minDiff = Infinity;
 
@@ -1707,18 +1542,12 @@ const ChartComponent = forwardRef(({
                     }
                 }
 
-                // Fallback if no match found
                 if (clickedIndex === -1) {
                     clickedIndex = fullDataRef.current.length - 1;
                 }
 
-                // Clamp to valid range
                 clickedIndex = Math.max(0, Math.min(clickedIndex, fullDataRef.current.length - 1));
 
-                // DEBUG: Log the found candle time
-
-
-                // Store current visible range BEFORE updating data
                 let currentVisibleRange = null;
                 try {
                     const timeScale = chartRef.current.timeScale();
@@ -1727,26 +1556,21 @@ const ChartComponent = forwardRef(({
                     // Ignore
                 }
 
-                // Update replay to the clicked position
                 setReplayIndex(clickedIndex);
                 replayIndexRef.current = clickedIndex;
-                updateReplayData(clickedIndex, true); // true = hide future candles
+                updateReplayData(clickedIndex, true);
 
-                // Restore visible range after data update to prevent view jumping
                 if (currentVisibleRange && chartRef.current) {
                     setTimeout(() => {
                         try {
                             const timeScale = chartRef.current.timeScale();
-                            // Adjust the range to end at the clicked candle if needed
                             const clickedCandleTime = fullDataRef.current[clickedIndex]?.time;
                             if (clickedCandleTime && currentVisibleRange.to > clickedCandleTime) {
-                                // The current view extends beyond the clicked time, adjust it
                                 const rangeWidth = currentVisibleRange.to - currentVisibleRange.from;
                                 const newTo = clickedCandleTime;
                                 const newFrom = newTo - rangeWidth;
                                 timeScale.setVisibleRange({ from: newFrom, to: newTo });
                             } else {
-                                // Keep the current view
                                 timeScale.setVisibleRange(currentVisibleRange);
                             }
                         } catch (e) {
@@ -1768,12 +1592,10 @@ const ChartComponent = forwardRef(({
         };
     }, [isReplayMode, isSelectingReplayPoint, isPlaying, updateReplayData]);
 
-    // Click Handler for "Jump to Bar" - TradingView style
     useEffect(() => {
         if (!chartRef.current || !isSelectingReplayPoint) return;
         if (!mainSeriesRef.current) return;
 
-        // Chart click handler - param.time gives us the exact time at the clicked position
         const handleChartClick = (param) => {
             if (!param || !isSelectingReplayPoint) return;
             if (!fullDataRef.current || fullDataRef.current.length === 0) return;
@@ -1781,11 +1603,9 @@ const ChartComponent = forwardRef(({
             try {
                 let clickedTime = null;
 
-                // First try to use param.time (most accurate - exact time at click position)
                 if (param.time) {
                     clickedTime = param.time;
                 } else if (param.point) {
-                    // Fallback: use coordinate to get time
                     const timeScale = chartRef.current.timeScale();
                     const x = param.point.x;
                     clickedTime = timeScale.coordinateToTime(x);
@@ -1793,10 +1613,8 @@ const ChartComponent = forwardRef(({
 
                 if (!clickedTime) return;
 
-                // Find exact time match first (most accurate)
                 let clickedIndex = fullDataRef.current.findIndex(d => d.time === clickedTime);
 
-                // If no exact match, find the closest candle by time
                 if (clickedIndex === -1) {
                     let minDiff = Infinity;
                     fullDataRef.current.forEach((d, i) => {
@@ -1808,25 +1626,19 @@ const ChartComponent = forwardRef(({
                     });
                 }
 
-                // Clamp to valid range
                 clickedIndex = Math.max(0, Math.min(clickedIndex, fullDataRef.current.length - 1));
 
                 if (clickedIndex >= 0 && clickedIndex < fullDataRef.current.length) {
-                    // Store the selected index before updating
                     const selectedIndex = clickedIndex;
 
-                    // Get current visible range BEFORE updating data to preserve zoom level
                     let currentVisibleRange = null;
-                    let currentVisibleLogicalRange = null;
                     try {
                         const timeScale = chartRef.current.timeScale();
                         currentVisibleRange = timeScale.getVisibleRange();
-                        currentVisibleLogicalRange = timeScale.getVisibleLogicalRange();
                     } catch (e) {
                         // Ignore
                     }
 
-                    // Calculate the range width in time units to maintain zoom
                     let rangeWidth = null;
                     if (currentVisibleRange && currentVisibleRange.from && currentVisibleRange.to) {
                         rangeWidth = currentVisibleRange.to - currentVisibleRange.from;
@@ -1835,12 +1647,10 @@ const ChartComponent = forwardRef(({
                     setReplayIndex(selectedIndex);
                     replayIndexRef.current = selectedIndex;
 
-                    // Calculate target visible range BEFORE updating data
                     const selectedTime = fullDataRef.current[selectedIndex]?.time;
                     let targetRange = null;
 
                     if (selectedTime && rangeWidth && rangeWidth > 0) {
-                        // Calculate target range to maintain zoom
                         const newFrom = selectedTime - rangeWidth / 2;
                         const newTo = selectedTime + rangeWidth / 2;
 
@@ -1851,7 +1661,6 @@ const ChartComponent = forwardRef(({
                             let adjustedFrom = Math.max(firstTime, newFrom);
                             let adjustedTo = Math.min(lastAvailableTime, newTo);
 
-                            // Adjust boundaries while maintaining width
                             if (adjustedFrom === firstTime && adjustedTo < newTo) {
                                 adjustedTo = Math.min(lastAvailableTime, adjustedFrom + rangeWidth);
                             } else if (adjustedTo === lastAvailableTime && adjustedFrom > newFrom) {
@@ -1864,7 +1673,6 @@ const ChartComponent = forwardRef(({
                         }
                     }
 
-                    // If no target range calculated, use a default that doesn't zoom in
                     if (!targetRange && selectedTime) {
                         const VIEW_WINDOW = 300;
                         const startIndex = Math.max(0, selectedIndex - VIEW_WINDOW / 2);
@@ -1876,7 +1684,6 @@ const ChartComponent = forwardRef(({
                         }
                     }
 
-                    // Update replay data
                     updateReplayData(selectedIndex, true, false);
 
                     setIsSelectingReplayPoint(false);
@@ -1884,15 +1691,11 @@ const ChartComponent = forwardRef(({
                         chartContainerRef.current.style.cursor = 'default';
                     }
 
-                    // Immediately set visible range to prevent auto-zoom
-                    // Set multiple times to ensure it sticks
                     if (targetRange && chartRef.current) {
                         try {
                             const timeScale = chartRef.current.timeScale();
-                            // Set immediately
                             timeScale.setVisibleRange(targetRange);
 
-                            // Set again after a short delay to override any auto-zoom
                             setTimeout(() => {
                                 if (chartRef.current) {
                                     try {
@@ -1903,7 +1706,6 @@ const ChartComponent = forwardRef(({
                                 }
                             }, 10);
 
-                            // Set one more time after data update completes
                             setTimeout(() => {
                                 if (chartRef.current) {
                                     try {
@@ -1923,7 +1725,6 @@ const ChartComponent = forwardRef(({
             }
         };
 
-        // Subscribe to chart clicks only (series don't have subscribeClick method)
         chartRef.current.subscribeClick(handleChartClick);
 
         return () => {
@@ -1939,7 +1740,7 @@ const ChartComponent = forwardRef(({
                 id="container"
                 ref={chartContainerRef}
                 className={styles.chartContainer}
-                                style={{
+                style={{
                     position: 'relative',
                     touchAction: 'none'
                 }}
@@ -1956,7 +1757,6 @@ const ChartComponent = forwardRef(({
             />
 
             {/* OHLC Header Bar */}
-
             {ohlcData && (
                 <div className={styles.ohlcHeader} style={{ left: isToolbarVisible ? '55px' : '10px' }}>
                     <span className={styles.ohlcSymbol}>{symbol} · {interval.toUpperCase()}</span>
@@ -1987,8 +1787,6 @@ const ChartComponent = forwardRef(({
                 </div>
             )}
 
-
-
             {/* Replay Controls */}
             {isReplayMode && (
                 <ReplayControls
@@ -2000,11 +1798,9 @@ const ChartComponent = forwardRef(({
                     onSpeedChange={setReplaySpeed}
                     onClose={() => {
                         setIsReplayMode(false);
-                        // Notify parent about replay mode change
                         if (onReplayModeChange) {
                             onReplayModeChange(false);
                         }
-                        // Restore full data
                         if (mainSeriesRef.current && fullDataRef.current.length > 0) {
                             dataRef.current = fullDataRef.current;
                             const transformedData = transformData(fullDataRef.current, chartTypeRef.current);
@@ -2028,8 +1824,6 @@ const ChartComponent = forwardRef(({
                     isPlaying={isPlaying}
                 />
             )}
-
-
         </div>
     );
 });
