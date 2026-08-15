@@ -5,28 +5,15 @@
  * tool classes (Lines and Rectangle) registered before the adapter is used.
  * Tools are registered lazily when the plugin API becomes available.
  *
- * Registered tools (from @mp/line-tools-lines):
- *   - TrendLine
- *   - Ray
- *   - ExtendedLine
- *   - HorizontalLine
- *   - VerticalLine
- *   - CrossLine
+ * Registered tools (from @mp/line-tools-lines via registerLinesPlugin):
+ *   - TrendLine, Ray, ExtendedLine, HorizontalLine, VerticalLine, CrossLine
  *
- * Registered tools (from @mp/line-tools-rectangle):
+ * Registered tools (from @mp/line-tools-rectangle via registerRectangleTool):
  *   - Rectangle
  */
 
-// Core tool type identifiers (LineToolType values from @mp/line-tools-core)
-const LINE_TOOL_TYPES = {
-  TREND_LINE: 'TrendLine',
-  RAY: 'Ray',
-  EXTENDED_LINE: 'ExtendedLine',
-  HORIZONTAL_LINE: 'HorizontalLine',
-  VERTICAL_LINE: 'VerticalLine',
-  CROSS_LINE: 'CrossLine',
-  RECTANGLE: 'Rectangle',
-};
+import { registerLinesPlugin } from '@mp/line-tools-lines';
+import { registerRectangleTool } from '@mp/line-tools-rectangle';
 
 /**
  * Registers priority line tools with the core plugin instance.
@@ -41,22 +28,17 @@ export function registerPriorityTools(corePlugin) {
     return;
   }
 
-  // Register line tools from @mp/line-tools-lines
+  // Register 6 line tools from @mp/line-tools-lines
   try {
-    corePlugin.registerLineTool(LINE_TOOL_TYPES.TREND_LINE, /* LineToolTrendLine */ () => {});
-    corePlugin.registerLineTool(LINE_TOOL_TYPES.RAY, /* LineToolRay */ () => {});
-    corePlugin.registerLineTool(LINE_TOOL_TYPES.EXTENDED_LINE, /* LineToolExtendedLine */ () => {});
-    corePlugin.registerLineTool(LINE_TOOL_TYPES.HORIZONTAL_LINE, /* LineToolHorizontalLine */ () => {});
-    corePlugin.registerLineTool(LINE_TOOL_TYPES.VERTICAL_LINE, /* LineToolVerticalLine */ () => {});
-    corePlugin.registerLineTool(LINE_TOOL_TYPES.CROSS_LINE, /* LineToolCrossLine */ () => {});
+    registerLinesPlugin(corePlugin);
     console.log('toolRegistry: Registered 6 line tools from @mp/line-tools-lines');
   } catch (e) {
     console.warn('toolRegistry: Failed to register line tools from @mp/line-tools-lines', e);
   }
 
-  // Register rectangle tool from @mp/line-tools-rectangle
+  // Register Rectangle tool from @mp/line-tools-rectangle
   try {
-    corePlugin.registerLineTool(LINE_TOOL_TYPES.RECTANGLE, /* LineToolRectangle */ () => {});
+    registerRectangleTool(corePlugin);
     console.log('toolRegistry: Registered Rectangle tool from @mp/line-tools-rectangle');
   } catch (e) {
     console.warn('toolRegistry: Failed to register Rectangle tool from @mp/line-tools-rectangle', e);
