@@ -158,6 +158,9 @@ export class ToolLifecycleController<HorzScaleItem> {
 			this._horzScaleBehavior,
 			options,
 			sanitizedPoints, // Pass sanitized array instead of raw points
+			type,                           // toolType (7th param)
+			sanitizedPoints.length,          // pointsCount (8th param)
+			this._plugin.getPriceAxisLabelStackingManager(), // (9th param)
 		);
 
 		if (id) {
