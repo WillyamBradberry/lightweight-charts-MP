@@ -31,6 +31,8 @@ export class LineToolsCoreAdapter {
     this._corePlugin = null;
     this._drawingsLocked = false;
     this._isDestroyed = false;
+    this._onToolUsed = null;
+    this._afterEditHandler = null;
   }
 
   /**
@@ -39,11 +41,15 @@ export class LineToolsCoreAdapter {
    * @param {Function} registerToolsFn - Function to register priority tools (from toolRegistry)
    * @returns {void}
    */
-  init(registerToolsFn) {
+  init(registerToolsFn, onToolUsed) {
     if (this._corePlugin) {
       console.warn('LineToolsCoreAdapter: already initialized');
       return;
     }
+
+    // Store the optional shell callback used to signal "a drawing finished"
+    // so the host can clear the active tool selection (non-sticky behavior).
+    this._onToolUsed = typeof onToolUsed === 'function' ? onToolUsed : null;
 
     try {
       // Create the core line tools plugin instance
@@ -61,6 +67,45 @@ export class LineToolsCoreAdapter {
       // Fall back to a no-op plugin if core is not available
       this._createDummyPlugin();
     }
+
+    // Non-sticky support: subscribe to finish events. Works for both the real
+    // plugin and the dummy fallback (whose subscribe is a no-op).
+    this._subscribeFinish();
+  }
+
+  /**
+   * Subscribe to the core plugin's after-edit event and forward "drawing
+   * finished" signals to the shell via the onToolUsed callback.
+   *
+   * The core plugin fires `subscribeLineToolsAfterEdit` with an event whose
+   * `stage` is 'lineToolEdited' (point-drag edit of an existing tool),
+   * 'pathFinished' (path-tool creation complete) or 'lineToolFinished'
+   * (fixed-point tool creation complete). Only the creation-complete stages
+   * trigger the shell callback, so adjusting an existing tool's points does
+   * NOT deselect the toolbar (mirrors the legacy path's non-sticky behavior).
+   * @returns {void}
+   */
+  _subscribeFinish() {
+    if (!this._corePlugin || !this._onToolUsed) {
+      return;
+    }
+    if (typeof this._corePlugin.subscribeLineToolsAfterEdit !== 'function') {
+      console.warn('LineToolsCoreAdapter: subscribeLineToolsAfterEdit not available on core plugin');
+      return;
+    }
+    // Avoid double-subscribing if init() is re-entered.
+    if (this._afterEditHandler) {
+      return;
+    }
+    this._afterEditHandler = (event) => {
+      // 'lineToolFinished' => a fixed-point tool creation just completed.
+      // 'pathFinished' => the path-tool analog. 'lineToolEdited' (point drag)
+      // is intentionally ignored so editing an existing tool won't deselect.
+      if (event && (event.stage === 'lineToolFinished' || event.stage === 'pathFinished')) {
+        this._onToolUsed();
+      }
+    };
+    this._corePlugin.subscribeLineToolsAfterEdit(this._afterEditHandler);
   }
 
   /**
@@ -303,6 +348,18 @@ export class LineToolsCoreAdapter {
 
     this._isDestroyed = true;
 
+    // Unsubscribe the finish handler BEFORE destroying the plugin. The core
+    // plugin's destroy() self-neuters into a dummy, so the real subscription
+    // must be torn down while the real API still exists.
+    if (this._afterEditHandler && this._corePlugin && typeof this._corePlugin.unsubscribeLineToolsAfterEdit === 'function') {
+      try {
+        this._corePlugin.unsubscribeLineToolsAfterEdit(this._afterEditHandler);
+      } catch (error) {
+        console.warn('LineToolsCoreAdapter: error unsubscribing finish handler', error);
+      }
+      this._afterEditHandler = null;
+    }
+
     // Clean up core plugin if available
     if (this._corePlugin && typeof this._corePlugin.destroy === 'function') {
       try {
@@ -315,6 +372,7 @@ export class LineToolsCoreAdapter {
     // Clear internal state
     this._corePlugin = null;
     this._drawingsLocked = false;
+    this._onToolUsed = null;
 
     console.log('LineToolsCoreAdapter: destroyed');
   }

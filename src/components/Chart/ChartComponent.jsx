@@ -732,9 +732,8 @@ const ChartComponent = forwardRef(({
                 console.log('[LT] branch= CORE');
                 // CORE path (USE_CORE_LINE_TOOLS=true): use the @mp/line-tools-core adapter.
                 const coreAdapter = createLineToolsAdapter(chartRef.current, series);
-                coreAdapter.init(registerPriorityTools);
+                coreAdapter.init(registerPriorityTools, onToolUsed);
                 lineToolManagerRef.current = coreAdapter;
-
                 window.lineToolManager = coreAdapter;
                 window.chartInstance = chartRef.current;
                 window.seriesInstance = series;
