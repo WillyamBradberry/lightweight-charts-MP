@@ -57,7 +57,7 @@ private readonly _horzScaleBehavior: IHorzScaleBehavior<HorzScaleItem>;
 private _tools: Map<string, BaseLineTool<HorzScaleItem>> = new Map();
 private readonly _toolRegistry: ToolRegistry<HorzScaleItem>;
 private readonly _interactionManager: InteractionManager<HorzScaleItem>;
-private readonly _priceAxisLabelStackingManager: PriceAxisLabelStackingManager<HorzScaleItem>;
+private _priceAxisLabelStackingManager: PriceAxisLabelStackingManager<HorzScaleItem> | null = null;
 private readonly _crosshairTimeView: CrosshairTimeAxisLabelView<HorzScaleItem>;
 
 // Composition collaborators (delegation targets)
@@ -81,7 +81,6 @@ this._series = series;
 this._horzScaleBehavior = horzScaleBehavior;
 this._toolRegistry = new ToolRegistry<HorzScaleItem>();
 this._interactionManager = new InteractionManager<HorzScaleItem>(this, this._chart, this._series, this._tools, this._toolRegistry);
-this._priceAxisLabelStackingManager = new PriceAxisLabelStackingManager<HorzScaleItem>(this._chart, this._series);
 
 // Initialize the supplemental crosshair view
 this._crosshairTimeView = new CrosshairTimeAxisLabelView<HorzScaleItem>(this._chart);
@@ -307,8 +306,11 @@ this._eventBus.fireAfterEditEvent(tool, stage);
 }
 
 public getPriceAxisLabelStackingManager(): PriceAxisLabelStackingManager<HorzScaleItem> {
-return this._priceAxisLabelStackingManager;
-}
+		if (!this._priceAxisLabelStackingManager) {
+			this._priceAxisLabelStackingManager = new PriceAxisLabelStackingManager<HorzScaleItem>(this._chart, this._series);
+		}
+		return this._priceAxisLabelStackingManager;
+	}
 
 // #region ISeriesPrimitive Implementation
 

@@ -215,7 +215,8 @@ export class LineToolTrendLine<HorzScaleItem> extends BaseLineTool<HorzScaleItem
 		horzScaleBehavior: IHorzScaleBehavior<HorzScaleItem>,
 		options: DeepPartial<LineToolOptionsInternal<'TrendLine'>> = {},
 		points: LineToolPoint[] = [],
-		priceAxisLabelStackingManager: PriceAxisLabelStackingManager<HorzScaleItem>
+		priceAxisLabelStackingManager: PriceAxisLabelStackingManager<HorzScaleItem>,
+		toolType: LineToolType = 'TrendLine'
 	) {
 		const finalOptions = deepCopy(TrendLineOptionDefaults) as LineToolOptionsInternal<'TrendLine'>;
 		merge(finalOptions, options as DeepPartial<LineToolOptionsInternal<'TrendLine'>>);
@@ -227,7 +228,7 @@ export class LineToolTrendLine<HorzScaleItem> extends BaseLineTool<HorzScaleItem
 			horzScaleBehavior,
 			finalOptions,
 			points,
-			'TrendLine',
+			toolType,
 			2,
 			priceAxisLabelStackingManager
 		);

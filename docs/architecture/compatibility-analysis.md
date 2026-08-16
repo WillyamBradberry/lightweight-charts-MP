@@ -13,7 +13,7 @@ This document analyzes the compatibility between three components in the MP Char
 ## 1. Dependency Graph
 
 ```
-MP-charts-toolkit (openalgo-chart@0.0.0)
+MP-charts-toolkit (WB MP-Charts@0.0.0)
   │
   ├── lightweight-charts@5.0.9
   │     └── fancy-canvas@2.1.0

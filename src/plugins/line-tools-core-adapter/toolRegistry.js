@@ -30,7 +30,13 @@ export function registerPriorityTools(corePlugin) {
 
   // Register 6 line tools from @mp/line-tools-lines
   try {
-    registerLinesPlugin(corePlugin);
+    const result = registerLinesPlugin(corePlugin);
+    // Log each registration with proper information instead of hardcoded values
+    for (const [type, toolClass] of Object.entries(result)) {
+      const isFunction = typeof toolClass === 'function';
+      const classType = isFunction ? toolClass.name : 'unknown';
+      console.log(`[LT] register type=${type} classType=${classType} isFunction=${isFunction}`);
+    }
     console.log('toolRegistry: Registered 6 line tools from @mp/line-tools-lines');
   } catch (e) {
     console.warn('toolRegistry: Failed to register line tools from @mp/line-tools-lines', e);
@@ -38,7 +44,15 @@ export function registerPriorityTools(corePlugin) {
 
   // Register Rectangle tool from @mp/line-tools-rectangle
   try {
-    registerRectangleTool(corePlugin);
+    const result = registerRectangleTool(corePlugin);
+    // Log registration with proper information instead of hardcoded values
+    if (result && typeof result === 'object') {
+      for (const [type, toolClass] of Object.entries(result)) {
+        const isFunction = typeof toolClass === 'function';
+        const classType = isFunction ? toolClass.name : 'unknown';
+        console.log(`[LT] register type=${type} classType=${classType} isFunction=${isFunction}`);
+      }
+    }
     console.log('toolRegistry: Registered Rectangle tool from @mp/line-tools-rectangle');
   } catch (e) {
     console.warn('toolRegistry: Failed to register Rectangle tool from @mp/line-tools-rectangle', e);

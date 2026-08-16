@@ -331,10 +331,16 @@ const ChartComponent = forwardRef(({
             }
 
             const mappedTool = TOOL_MAP[activeTool] || 'None';
+            
+            console.log(`[LT] activeTool raw=${activeTool}`);
+            console.log(`[LT] mapped=${mappedTool}`);
+            console.log(`[LT] hasManager=${!!lineToolManagerRef.current}`);
+            console.log(`[LT] hasStartTool=${typeof lineToolManagerRef.current.startTool === 'function'}`);
+            
+            const shouldCallStartTool = typeof manager.startTool === 'function';
+            console.log(`[LT] calling startTool= ${shouldCallStartTool ? 'yes' : 'no'}`);
 
-            console.log(`[Chart] activeTool=${activeTool} mapped=${mappedTool}`);
-
-            if (typeof manager.startTool === 'function') {
+            if (shouldCallStartTool) {
                 manager.startTool(mappedTool);
             }
         }
@@ -667,8 +673,14 @@ const ChartComponent = forwardRef(({
     }, [activeTool]);
 
     const initializeLineTools = (series) => {
+        console.log('[LT] init start');
+        
         if (!lineToolManagerRef.current) {
-            if (!useCoreLineTools()) {
+            const useCore = useCoreLineTools();
+            console.log('[LT] useCore=' + useCore);
+            
+            if (!useCore) {
+                console.log('[LT] branch= LEGACY');
                 const manager = new LineToolManager();
 
                 const originalStartTool = manager.startTool.bind(manager);
@@ -717,6 +729,7 @@ const ChartComponent = forwardRef(({
                 window.chartInstance = chartRef.current;
                 window.seriesInstance = series;
             } else {
+                console.log('[LT] branch= CORE');
                 // CORE path (USE_CORE_LINE_TOOLS=true): use the @mp/line-tools-core adapter.
                 const coreAdapter = createLineToolsAdapter(chartRef.current, series);
                 coreAdapter.init(registerPriorityTools);
@@ -726,6 +739,8 @@ const ChartComponent = forwardRef(({
                 window.chartInstance = chartRef.current;
                 window.seriesInstance = series;
             }
+            
+            console.log('[LT] refSet= true');
         }
     };
 

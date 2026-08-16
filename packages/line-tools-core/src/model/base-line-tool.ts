@@ -279,6 +279,7 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 
 	private _attachedPane: IPaneApi<HorzScaleItem> | null = null; 
 
+	// ... existing code ...
 	/** Construct the base tool and create persistent axis views for bounded tools. */
 	public constructor(
 		coreApi: LineToolsCorePlugin<HorzScaleItem>,
@@ -292,6 +293,8 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 		priceAxisLabelStackingManager: PriceAxisLabelStackingManager<HorzScaleItem>
 	) {
 		super(chart); 
+		console.log(`>>> [CORE-PLUGIN] LOADED AT: ${new Date().toISOString()}`);
+		console.log('[DEBUG] BaseLineTool constructor called. Stacking manager is:', priceAxisLabelStackingManager);
 		
 		this._id = randomHash();
 		this._coreApi = coreApi;
@@ -303,6 +306,9 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 		this.toolType = toolType;
 		this.pointsCount = pointsCount;
 		this._priceAxisLabelStackingManager = priceAxisLabelStackingManager;
+
+		// We assume the concrete tool has already handled the deep copy and merge,
+// ... rest of code ...
 
 		// We assume the concrete tool has already handled the deep copy and merge,
 		// and is passing the final, ready-to-use options object.
@@ -860,10 +866,14 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 		this._priceAxisLabelViews.forEach(view => view.update());
 		this._timeAxisLabelViews.forEach(view => view.update());
 
-		// Call Stacking Manager synchronously. It must run immediately after the view updates
+				// Call Stacking Manager synchronously. It must run immediately after the view updates
 		// to ensure the shifted Y-coordinate is available for the chart's paint cycle.
-		this._priceAxisLabelStackingManager.updateStacking();
-	}	
+		if (this._priceAxisLabelStackingManager && typeof this._priceAxisLabelStackingManager.updateStacking === 'function') {
+			this._priceAxisLabelStackingManager.updateStacking();
+		} else {
+			console.error('[BaseLineTool] ERROR: StackingManager is invalid!', this._priceAxisLabelStackingManager);
+		}
+	}		
 
 	/**
 	 * Retrieves the color that should be used for the price axis label background.
@@ -1042,7 +1052,11 @@ export abstract class BaseLineTool<HorzScaleItem> extends PriceDataSource<HorzSc
 			}
 		});
 		// Trigger a stacking update to re-flow remaining labels after this tool's labels are removed
-		this._priceAxisLabelStackingManager.updateStacking();
+		if (this._priceAxisLabelStackingManager) {
+			this._priceAxisLabelStackingManager.updateStacking();
+		} else {
+			console.warn('[BaseLineTool] WARNING: Cannot call updateStacking - StackingManager is null or undefined');
+		}
 
 		// Clear references to views and internal data
 		this._paneViews.forEach(paneView => {

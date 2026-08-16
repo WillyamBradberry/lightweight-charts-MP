@@ -146,10 +146,13 @@ export class ToolLifecycleController<HorzScaleItem> {
 		const seriesOptions = this._series.options() as any;
 		const minMove = seriesOptions?.priceFormat?.minMove || 0.01;
 
-		const sanitizedPoints = points.map(p => ({
+				const sanitizedPoints = points.map(p => ({
 			...p,
 			price: roundPriceToStep(p.price, minMove)
 		}));
+
+		const stackingManager = this._plugin.getPriceAxisLabelStackingManager();
+		console.log(`[DEBUG] Creating tool ${type}. StackingManager is:`, stackingManager);
 
 		const newTool = new ToolClass(
 			this._plugin,
@@ -158,9 +161,8 @@ export class ToolLifecycleController<HorzScaleItem> {
 			this._horzScaleBehavior,
 			options,
 			sanitizedPoints, // Pass sanitized array instead of raw points
-			type,                           // toolType (7th param)
-			sanitizedPoints.length,          // pointsCount (8th param)
-			this._plugin.getPriceAxisLabelStackingManager(), // (9th param)
+			stackingManager,                 // priceAxisLabelStackingManager (7th param, per subclass ctor signature)
+			type,                            // toolType (8th param, per subclass ctor signature)
 		);
 
 		if (id) {

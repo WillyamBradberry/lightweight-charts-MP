@@ -99,7 +99,8 @@ export class LineToolExtendedLine<HorzScaleItem> extends LineToolTrendLine<HorzS
 		horzScaleBehavior: IHorzScaleBehavior<HorzScaleItem>,
 		options: DeepPartial<LineToolOptionsInternal<'ExtendedLine'>> = {},
 		points: LineToolPoint[] = [],
-		priceAxisLabelStackingManager: PriceAxisLabelStackingManager<HorzScaleItem>
+		priceAxisLabelStackingManager: PriceAxisLabelStackingManager<HorzScaleItem>,
+		toolType: LineToolType = 'ExtendedLine'
 	) {
 		// 1. Start with a deep copy of the base TrendLine defaults.
 		const finalOptions = deepCopy(TrendLineOptionDefaults) as LineToolOptionsInternal<'ExtendedLine'>;

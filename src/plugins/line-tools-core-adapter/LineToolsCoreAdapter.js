@@ -7,14 +7,15 @@ import { createLineToolsPlugin } from '@mp/line-tools-core';
  * set of methods for tool management. It does NOT implement sticky mode,
  * continuous auto-restart, right-click special logic, or mouse-button experiments.
  *
- * Public API:
- *   - startTool(type)      – Start a drawing tool by type string
- *   - clearTools()         – Clear all drawings from the chart
- *   - lockAllDrawings()    – Lock all drawings to prevent interaction
- *   - unlockAllDrawings()  – Unlock all drawings for interaction
- *   - areDrawingsLocked()  – Check if all drawings are currently locked
- *   - setDefaultRange()    – No-op (placeholder for future range logic)
- *   - destroy()            – Clean up and destroy the adapter/plugin instance
+  * Public API:
+ *   - startTool(type)             – Start a drawing tool by type string
+ *   - clearTools()                – Clear all drawings from the chart (→ removeAllLineTools)
+ *   - removeSelectedLineTools()   – Remove the currently selected drawings (→ removeSelectedLineTools)
+ *   - lockAllDrawings()           – Lock all drawings to prevent interaction
+ *   - unlockAllDrawings()         – Unlock all drawings for interaction
+ *   - areDrawingsLocked()         – Check if all drawings are currently locked
+ *   - setDefaultRange()           – No-op (placeholder for future range logic)
+ *   - destroy()                   – Clean up and destroy the adapter/plugin instance
  */
 export class LineToolsCoreAdapter {
   /**
@@ -74,6 +75,8 @@ export class LineToolsCoreAdapter {
       registerLineTool: noop,
       addLineTool: () => '',
       clearTools: noop,
+      removeAllLineTools: noop,
+      removeSelectedLineTools: noop,
       lockAllDrawings: noop,
       unlockAllDrawings: noop,
       areDrawingsLocked: () => false,
@@ -84,6 +87,10 @@ export class LineToolsCoreAdapter {
 
   /**
    * Clear all drawings from the chart.
+   *
+   * CORE mapping: the @mp/line-tools-core plugin exposes `removeAllLineTools()`
+   * (it has no `clearTools` alias on its public API). Delegate to it, falling
+   * back to a legacy `clearTools` if a wrapped plugin variant still exposes it.
    * @returns {void}
    */
   clearTools() {
@@ -97,16 +104,55 @@ export class LineToolsCoreAdapter {
       return;
     }
 
-    if (typeof this._corePlugin.clearTools !== 'function') {
-      console.warn('LineToolsCoreAdapter: clearTools not available on core plugin');
+    // CORE path: plugin.removeAllLineTools() is the canonical "clear all" API.
+    // Keep a legacy fallback for any plugin variant that still exposes clearTools().
+    const clearAll = typeof this._corePlugin.removeAllLineTools === 'function'
+      ? this._corePlugin.removeAllLineTools
+      : this._corePlugin.clearTools;
+
+    if (typeof clearAll !== 'function') {
+      console.warn('LineToolsCoreAdapter: removeAllLineTools not available on core plugin');
       return;
     }
 
     try {
-      this._corePlugin.clearTools();
+      clearAll.call(this._corePlugin);
       console.log('LineToolsCoreAdapter: all tools cleared');
     } catch (error) {
       console.warn('LineToolsCoreAdapter: failed to clear tools', error);
+    }
+  }
+
+  /**
+   * Remove the currently selected line tool(s) from the chart.
+   *
+   * CORE mapping: delegates to plugin.removeSelectedLineTools() if available.
+   * Use this for a "Delete selection" action (e.g. binding to a Delete key
+   * press) to remove only the selected drawings, as opposed to {@link clearTools}
+   * which removes everything.
+   * @returns {void}
+   */
+  removeSelectedLineTools() {
+    if (this._isDestroyed) {
+      console.warn('LineToolsCoreAdapter: cannot remove selected tools, adapter is destroyed');
+      return;
+    }
+
+    if (!this._corePlugin) {
+      console.warn('LineToolsCoreAdapter: core plugin not initialized');
+      return;
+    }
+
+    if (typeof this._corePlugin.removeSelectedLineTools !== 'function') {
+      console.warn('LineToolsCoreAdapter: removeSelectedLineTools not available on core plugin');
+      return;
+    }
+
+    try {
+      this._corePlugin.removeSelectedLineTools();
+      console.log('LineToolsCoreAdapter: selected tools removed');
+    } catch (error) {
+      console.warn('LineToolsCoreAdapter: failed to remove selected tools', error);
     }
   }
 
@@ -220,9 +266,9 @@ export class LineToolsCoreAdapter {
       console.warn('LineToolsCoreAdapter: core plugin not initialized');
       return;
     }
-
-    console.log('[Adapter] startTool=', type);
-
+    
+    console.log('[LT] adapter.startTool type=', type);
+    
     // Cursor / no-tool => gracefully stop any in-progress drawing.
     if (!type || type === 'None' || type === 'none') {
       if (typeof this._corePlugin.deselectAllTools === 'function') {
@@ -232,8 +278,14 @@ export class LineToolsCoreAdapter {
     }
 
     if (typeof this._corePlugin.addLineTool === 'function') {
-      console.log('[Adapter] addLineTool called=', type);
-      this._corePlugin.addLineTool(type);
+      console.log('[LT] pluginExists=true');
+      console.log('[LT] before addLineTool type=', type);
+      try {
+        this._corePlugin.addLineTool(type);
+        console.log('[LT] after addLineTool type=', type);
+      } catch (error) {
+        console.error('[LT] error in addLineTool:', error);
+      }
     } else {
       console.warn('LineToolsCoreAdapter: addLineTool not available on core plugin');
     }
