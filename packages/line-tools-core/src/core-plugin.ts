@@ -141,6 +141,12 @@ public registerLineTool(type: LineToolType, toolClass: new (...args: any[]) => B
 this._toolRegistry.registerTool(type, toolClass);
 console.log(`Registered line tool: ${type}`);
 }
+/**
+ * Returns whether a tool type is currently registered with the plugin.
+ */
+public isLineToolRegistered(type: LineToolType): boolean {
+	return this._toolRegistry.isRegistered(type);
+}
 
 // #region ILineToolsApi Implementation
 

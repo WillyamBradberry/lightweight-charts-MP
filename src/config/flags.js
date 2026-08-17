@@ -8,7 +8,7 @@
 //   stays unchanged and the old `src/plugins/line-tools` monolith remains the default.
 //   Do not enable until the adapter + registered tool classes are validated.
 export const FEATURE_FLAGS = {
-  USE_CORE_LINE_TOOLS: true, 
+  USE_CORE_LINE_TOOLS: false, 
 };
 
 /**

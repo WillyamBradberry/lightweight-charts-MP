@@ -178,6 +178,17 @@ export interface ILineToolsApi {
 	addLineTool<T extends LineToolType>(type: T, points?: LineToolPoint[], options?: LineToolPartialOptionsMap[T]): string;
 
 	/**
+	 * Checks whether a tool type is currently registered with the plugin.
+	 *
+	 * Consumers can call this before {@link addLineTool} to avoid attempting to
+	 * start an unregistered tool (which would otherwise throw inside the plugin).
+	 *
+	 * @param type - The tool type to query (e.g. `'TrendLine'`, `'Rectangle'`).
+	 * @returns `true` if a tool class is registered for `type`, otherwise `false`.
+	 */
+	isLineToolRegistered(type: LineToolType): boolean;
+
+	/**
 	 * Creates a new line tool with a specific ID, or updates the existing tool if the ID is found.
 	 *
 	 * This method is idempotent and is typically used for state management operations like imports,

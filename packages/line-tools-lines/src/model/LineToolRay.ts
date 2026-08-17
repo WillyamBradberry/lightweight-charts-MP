@@ -116,8 +116,6 @@ export class LineToolRay<HorzScaleItem> extends LineToolTrendLine<HorzScaleItem>
 			horzScaleBehavior,
 			finalOptions,
 			points,
-			toolType,
-			2,
 			priceAxisLabelStackingManager
 		);
 
