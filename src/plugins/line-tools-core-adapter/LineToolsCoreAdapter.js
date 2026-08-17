@@ -1,6 +1,23 @@
 import { createLineToolsPlugin } from '@mp/line-tools-core';
 
 /**
+ * SVG icon set matching the "thin stroke" TradingView style used by the legacy
+ * floating toolbar (see libs/lightweight-charts-ui/.../line-tools.js ICONS).
+ * Injected as innerHTML so buttons render proper vector icons, not emoji.
+ */
+const ICONS = {
+  drag: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 12" width="8" height="12" fill="currentColor"><rect width="2" height="2" rx="1"></rect><rect width="2" height="2" rx="1" y="5"></rect><rect width="2" height="2" rx="1" y="10"></rect><rect width="2" height="2" rx="1" x="6"></rect><rect width="2" height="2" rx="1" x="6" y="5"></rect><rect width="2" height="2" rx="1" x="6" y="10"></rect></svg>',
+  template: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none" stroke="currentColor"><path stroke-linecap="round" d="M15.5 18.5h6m-3 3v-6"></path><rect width="6" height="6" rx="1.5" x="6.5" y="6.5"></rect><rect width="6" height="6" rx="1.5" x="15.5" y="6.5"></rect><rect width="6" height="6" rx="1.5" x="6.5" y="15.5"></rect></svg>',
+  brush: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><path fill="currentColor" d="M10.62.72a2.47 2.47 0 0 1 3.5 0l1.16 1.16c.96.97.96 2.54 0 3.5l-.58.58-8.9 8.9-1 1-.14.14H0v-4.65l.14-.15 1-1 8.9-8.9.58-.58Zm2.8.7a1.48 1.48 0 0 0-2.1 0l-.23.23 3.26 3.26.23-.23c.58-.58.58-1.52 0-2.1l-1.16-1.16Zm.23 4.2-3.26-3.27-8.2 8.2 3.25 3.27 8.2-8.2Zm-8.9 8.9-3.27-3.26-.5.5V15h3.27l.5-.5Z"></path></svg>',
+  text: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 13 15" width="13" height="15" fill="none"><path stroke="currentColor" d="M4 14.5h2.5m2.5 0H6.5m0 0V.5m0 0h-5a1 1 0 0 0-1 1V4m6-3.5h5a1 1 0 0 1 1 1V4"></path></svg>',
+  fill: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20" fill="none"><path stroke="currentColor" d="M13.5 6.5l-3-3-7 7 7.59 7.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82L13.5 6.5zm0 0v-4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6"></path><path fill="currentColor" d="M0 16.5C0 15 2.5 12 2.5 12S5 15 5 16.5 4 19 2.5 19 0 18 0 16.5z"></path><circle fill="currentColor" cx="9.5" cy="9.5" r="1.5"></circle></svg>',
+  alert: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28"><path fill="currentColor" d="m19.54 4.5 3.96 4.32-.74.68-3.96-4.32.74-.68ZM7.46 4.5 3.5 8.82l.74.68L8.2 5.18l-.74-.68ZM19.74 10.33A7.5 7.5 0 0 1 21 14.5v.5h1v-.5a8.5 8.5 0 1 0-8.5 8.5h.5v-1h-.5a7.5 7.5 0 1 1 6.24-11.67Z"></path><path fill="currentColor" d="M13 9v5h-3v1h4V9h-1ZM19 20v-4h1v4h4v1h-4v4h-1v-4h-4v-1h4Z"></path></svg>',
+  lock: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28"><path fill="currentColor" fill-rule="evenodd" d="M14 6a3 3 0 0 0-3 3v3h8.5a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 6 21.5v-7A2.5 2.5 0 0 1 8.5 12H10V9a4 4 0 0 1 8 0h-1a3 3 0 0 0-3-3zm-1 11a1 1 0 1 1 2 0v2a1 1 0 1 1-2 0v-2zm-6-2.5c0-.83.67-1.5 1.5-1.5h11c.83 0 1.5.67 1.5 1.5v7c0 .83-.67 1.5-1.5 1.5h-11A1.5 1.5 0 0 1 7 21.5v-7z"></path></svg>',
+  delete: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28"><path fill="currentColor" d="M18 7h5v1h-2.01l-1.33 14.64a1.5 1.5 0 0 1-1.5 1.36H9.84a1.5 1.5 0 0 1-1.49-1.36L7.01 8H5V7h5V6c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2v1Zm-6-2a1 1 0 0 0-1 1v1h6V6a1 1 0 0 0-1-1h-4ZM8.02 8l1.32 14.54a.5.5 0 0 0 .5.46h8.33a.5.5 0 0 0 .5-.46L19.99 8H8.02Z"></path></svg>',
+  more: '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none"><path fill="currentColor" fill-rule="evenodd" d="M7.5 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM5 14.5a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0zm9.5-1.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 14.5a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0zm9.5-1.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM19 14.5a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0z"></path></svg>',
+};
+
+/**
  * LineToolsCoreAdapter — Minimal adapter for the @mp/line-tools-core plugin.
  *
  * This adapter wraps the core line tools plugin API and exposes a simplified
@@ -37,8 +54,13 @@ export class LineToolsCoreAdapter {
     this._selectionHandler = null;
     this._selectedLineToolData = null;
     this._popupEl = null;
-    this._popupColorInput = null;
-    this._popupWidthEl = null;
+    this._activeDropdownHandlers = new Set();
+    // Drag state
+    this._dragTarget = null;
+    this._dragStartX = 0;
+    this._dragStartY = 0;
+    this._dragPopupStartLeft = 0;
+    this._dragPopupStartTop = 0;
   }
 
   /**
@@ -298,72 +320,369 @@ export class LineToolsCoreAdapter {
   }
 
   /**
-   * Minimal DOM settings/delete popup overlaying the chart. Rendered when a
-   * drawing is selected; delete is wired to removeSelectedLineTools(), and the
-   * basic style fields (line color / line width) to applyLineToolOptions().
+   * Create the floating toolbar popup. Mirrors the legacy `_renderExpanded()`
+   * (libs/lightweight-charts-ui/.../line-tools.js) — exact DOM structure with
+   * real SVG icons; only the accent color scheme is changed.
    */
   _ensurePopupEl() {
-    if (this._popupEl) {
-      return this._popupEl;
-    }
+    if (this._popupEl) return this._popupEl;
+
     const el = document.createElement('div');
-    el.className = 'line-tools-core-popup';
-    el.style.cssText = 'position:fixed;z-index:1000;display:none;box-sizing:border-box;' +
-      'min-width:190px;background:#1c2030;color:#d1d4dc;border:1px solid #2a2e39;' +
-      'border-radius:6px;padding:8px 10px;font:12px/1.4 -apple-system,Segoe UI,sans-serif;' +
-      'box-shadow:0 4px 12px rgba(0,0,0,.35);';
+    el.className = 'tv-floating-toolbar hidden';
+    el.style.position = 'fixed';
+    el.style.zIndex = '100';
 
-    // Color row
-    const rowColor = document.createElement('label');
-    rowColor.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
-    rowColor.appendChild(this._makeLabel('Color'));
-    this._popupColorInput = document.createElement('input');
-    this._popupColorInput.type = 'color';
-    this._popupColorInput.addEventListener('input', () => {
-      this.applySelectedLineToolOptions({ line: { color: this._popupColorInput.value } });
-    });
-    rowColor.appendChild(this._popupColorInput);
+    const tool = this._selectedLineToolData;
+    const opts = (tool && tool.options) || {};
+    const lineOpts = opts.line || {};
+    const toolType = (tool && tool.type) || 'Line';
+    const isText = toolType === 'Text' || toolType === 'Callout';
 
-    // Width row
-    const rowWidth = document.createElement('label');
-    rowWidth.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
-    rowWidth.appendChild(this._makeLabel('Width'));
-    this._popupWidthEl = document.createElement('select');
-    [1, 2, 3, 4, 5].forEach((w) => {
-      const opt = document.createElement('option');
-      opt.value = String(w);
-      opt.textContent = `${w}px`;
-      this._popupWidthEl.appendChild(opt);
+    // Left drag handle (exactly one, like the original)
+    el.appendChild(this._createDragHandle());
+
+    // Templates button
+    const templateWrapper = this._createToolWrapper();
+    const templateBtn = this._createButton(ICONS.template, 'Templates');
+    templateBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._toggleDropdown(e, templateWrapper, () => {});
     });
-    this._popupWidthEl.addEventListener('change', () => {
-      this.applySelectedLineToolOptions({ line: { width: Number(this._popupWidthEl.value) } });
+    templateWrapper.appendChild(templateBtn);
+    el.appendChild(templateWrapper);
+
+    // Line / Text color button
+    const color = isText ? (opts.textColor || lineOpts.color || '#131722') : (lineOpts.color || '#2962ff');
+    const cWrap = this._createToolWrapper();
+    const cBtn = this._createFillButton(isText ? ICONS.text : ICONS.brush, isText ? 'Text Color' : 'Line Color', color);
+    cBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._toggleDropdown(e, cWrap, (dd) => this._createColorGrid(dd, color, cBtn));
     });
-    rowWidth.appendChild(this._popupWidthEl);
+    cWrap.appendChild(cBtn);
+    el.appendChild(cWrap);
+
+    this._addSeparator(el);
+
+    // Width or Font Size trigger
+    if (!isText && (opts.lineWidth !== undefined || opts.width !== undefined)) {
+      const w = lineOpts.width ?? opts.lineWidth ?? 1;
+      const ww = this._createToolWrapper();
+      const wt = document.createElement('div');
+      wt.className = 'stroke-width-trigger';
+      wt.title = 'Line Width';
+      const wp = document.createElement('div');
+      wp.className = 'stroke-width-preview';
+      wp.style.height = `${Math.max(1, w)}px`;
+      const ws = document.createElement('span');
+      ws.textContent = `${w}px`;
+      wt.appendChild(wp);
+      wt.appendChild(ws);
+      wt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._toggleDropdown(e, ww, (dd) => this._createWidthList(dd, w, wp, ws));
+      });
+      ww.appendChild(wt);
+      el.appendChild(ww);
+    } else if (isText && opts.fontSize !== undefined) {
+      const fs = opts.fontSize || 14;
+      const fw = this._createToolWrapper();
+      const ft = document.createElement('div');
+      ft.className = 'font-size-trigger';
+      ft.title = 'Font Size';
+      const ftxt = document.createElement('span');
+      ftxt.textContent = `${fs}`;
+      ft.appendChild(ftxt);
+      ft.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._toggleDropdown(e, fw, (dd) => this._createFontSizeList(dd, fs));
+      });
+      fw.appendChild(ft);
+      el.appendChild(fw);
+    }
+
+    this._addSeparator(el);
+
+    // Lock button (toggles state, like the original)
+    const lb = this._createButton(ICONS.lock, this.areDrawingsLocked() ? 'Unlock' : 'Lock');
+    if (this.areDrawingsLocked()) lb.classList.add('active');
+    lb.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); this._toggleToolLock(e); });
+    el.appendChild(lb);
 
     // Delete button
-    const btn = document.createElement('button');
-    btn.textContent = 'Delete';
-    btn.style.cssText = 'width:100%;margin-top:4px;padding:4px 8px;cursor:pointer;background:#3a2a2a;' +
-      'color:#ff6b6b;border:1px solid #5a3636;border-radius:4px;';
-    btn.addEventListener('click', () => {
-      this.removeSelectedLineTools();
-      this._selectedLineToolData = null;
-      this._hidePopup();
-    });
+    const db = this._createButton(ICONS.delete, 'Remove');
+    db.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); this.removeSelectedLineTools(); this._selectedLineToolData = null; this._hidePopup(); });
+    el.appendChild(db);
 
-    el.appendChild(rowColor);
-    el.appendChild(rowWidth);
-    el.appendChild(btn);
+    // More (ellipsis) button
+    el.appendChild(this._createButton(ICONS.more, 'More'));
+
     document.body.appendChild(el);
     this._popupEl = el;
     return el;
   }
 
-  _makeLabel(text) {
-    const span = document.createElement('span');
-    span.style.cssText = 'flex:0 0 42px;';
-    span.textContent = text;
-    return span;
+  /** Create a drag handle element with drag-to-move behaviour. */
+  _createDragHandle() {
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.innerHTML = ICONS.drag;
+    handle.addEventListener('mousedown', (e) => this._startDrag(e));
+    return handle;
+  }
+
+  /** Create a wrapper div for a toolbar button/dropdown. */
+  _createToolWrapper() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tool-wrapper';
+    return wrapper;
+  }
+
+  /** Create an icon button with a title. */
+  _createButton(icon, title) {
+    const btn = document.createElement('button');
+    btn.className = 'tool-btn';
+    btn.innerHTML = icon;
+    btn.title = title;
+    return btn;
+  }
+
+  /** Create a fill-color button with a color preview strip at the bottom. */
+  _createFillButton(icon, title, color) {
+    const btn = document.createElement('button');
+    btn.className = 'tool-btn fill-btn';
+    btn.title = title;
+    const wrap = document.createElement('div');
+    wrap.className = 'fill-btn-wrap';
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'fill-btn-icon';
+    iconSpan.innerHTML = icon;
+    const colorBg = document.createElement('div');
+    colorBg.className = 'fill-btn-color-bg';
+    const colorBar = document.createElement('div');
+    colorBar.className = 'fill-btn-color';
+    colorBar.style.backgroundColor = color;
+    colorBg.appendChild(colorBar);
+    wrap.appendChild(iconSpan);
+    wrap.appendChild(colorBg);
+    btn.appendChild(wrap);
+    return btn;
+  }
+
+  /** Append a vertical separator to the given container. */
+  _addSeparator(container) {
+    if (!container) return;
+    const sep = document.createElement('div');
+    sep.className = 'divider';
+    container.appendChild(sep);
+  }
+
+  /** Toggle a dropdown panel for the given tool-wrapper element. */
+  _toggleDropdown(event, wrapperEl, contentCallback) {
+    event.stopPropagation();
+    const existing = wrapperEl.querySelector('.tv-floating-toolbar__dropdown');
+    if (existing && existing.classList.contains('visible')) {
+      existing.classList.remove('visible');
+      return;
+    }
+    this._closeAllDropdowns();
+    let dropdown = wrapperEl.querySelector('.tv-floating-toolbar__dropdown');
+    if (!dropdown) {
+      dropdown = document.createElement('div');
+      dropdown.className = 'tv-floating-toolbar__dropdown';
+      wrapperEl.appendChild(dropdown);
+    }
+    dropdown.innerHTML = '';
+    contentCallback(dropdown);
+    const closeHandler = () => {
+      dropdown.classList.remove('visible');
+      document.removeEventListener('click', closeHandler);
+      this._activeDropdownHandlers.delete(closeHandler);
+    };
+    this._activeDropdownHandlers.add(closeHandler);
+    requestAnimationFrame(() => {
+      if (this._activeDropdownHandlers.has(closeHandler)) {
+        dropdown.classList.add('visible');
+        setTimeout(() => {
+          if (this._activeDropdownHandlers.has(closeHandler)) {
+            document.addEventListener('click', closeHandler);
+          }
+        }, 0);
+      }
+    });
+    dropdown.addEventListener('click', (e) => e.stopPropagation());
+  }
+
+  /** Close all visible dropdowns within the toolbar. */
+  _closeAllDropdowns() {
+    if (!this._popupEl) return;
+    this._popupEl.querySelectorAll('.tv-floating-toolbar__dropdown.visible')
+      .forEach((dd) => dd.classList.remove('visible'));
+    for (const handler of this._activeDropdownHandlers) {
+      document.removeEventListener('click', handler);
+    }
+    this._activeDropdownHandlers.clear();
+  }
+
+// --- Dropdown content generators ---
+
+  /** Build a color palette grid inside the given dropdown container. */
+  _createColorGrid(container, currentColor, fillBtn) {
+    const colors = [
+      '#2962ff', '#1e88e5', '#42a5f5', '#0d47a1',
+      '#e53935', '#f44336', '#ef5350', '#b71c1c',
+      '#43a047', '#66bb6a', '#2e7d32', '#1b5e20',
+      '#fb8c00', '#ffa726', '#f57c00', '#e65100',
+      '#8e24aa', '#ab47bc', '#6a1b9a', '#4a148c',
+      '#fdd835', '#ffee58', '#fbc02d', '#f9a825',
+      '#ffffff', '#bdbdbd', '#757575', '#424242',
+    ];
+    const grid = document.createElement('div');
+    grid.className = 'tv-color-picker__grid';
+    colors.forEach((color) => {
+      const swatch = document.createElement('div');
+      swatch.className = 'tv-color-picker__swatch';
+      if (String(color).toLowerCase() === String(currentColor).toLowerCase()) {
+        swatch.classList.add('active');
+      }
+      swatch.style.backgroundColor = color;
+      swatch.addEventListener('click', () => {
+        this.applySelectedLineToolOptions({ line: { color } });
+        if (fillBtn) {
+          const bar = fillBtn.querySelector('.fill-btn-color');
+          if (bar) bar.style.backgroundColor = color;
+        }
+        container.classList.remove('visible');
+      });
+      grid.appendChild(swatch);
+    });
+    // Custom color input
+    const customBtn = document.createElement('div');
+    customBtn.className = 'tv-color-picker__custom-btn';
+    customBtn.innerHTML = '<input type="color" class="tv-color-picker__input"><span>+</span>';
+    const colorInput = customBtn.querySelector('input[type="color"]');
+    colorInput.value = currentColor || '#2962ff';
+    colorInput.addEventListener('input', (e) => {
+      this.applySelectedLineToolOptions({ line: { color: e.target.value } });
+      if (fillBtn) {
+        const bar = fillBtn.querySelector('.fill-btn-color');
+        if (bar) bar.style.backgroundColor = e.target.value;
+      }
+    });
+    customBtn.appendChild(colorInput);
+    container.appendChild(grid);
+    container.appendChild(customBtn);
+  }
+
+  /** Build a line-width picker list inside the given dropdown container. */
+  _createWidthList(container, currentWidth, previewEl, textEl) {
+    const widths = [1, 2, 3, 4];
+    widths.forEach((w) => {
+      const item = document.createElement('div');
+      item.className = 'tv-width-picker__item';
+      if (w === currentWidth) item.classList.add('active');
+      item.innerHTML = `<div class="tv-width-picker__line" style="height:${w}px"></div>` +
+        `<div class="tv-width-picker__text">${w}px</div>`;
+      item.addEventListener('click', () => {
+        this.applySelectedLineToolOptions({ line: { width: w } });
+        if (previewEl) previewEl.style.height = `${w}px`;
+        if (textEl) textEl.textContent = `${w}px`;
+        container.classList.remove('visible');
+      });
+      container.appendChild(item);
+    });
+  }
+
+  /** Build a font-size picker list inside the given dropdown container. */
+  _createFontSizeList(container, currentSize) {
+    const sizes = [8, 10, 11, 12, 14, 16, 18, 20, 22, 24];
+    sizes.forEach((s) => {
+      const item = document.createElement('div');
+      item.className = 'tv-font-size-picker__item';
+      if (s === currentSize) item.classList.add('active');
+      item.innerHTML = `<div class="tv-font-size-picker__text">${s}</div>`;
+      item.addEventListener('click', () => {
+        this.applySelectedLineToolOptions({ fontSize: s });
+        const trigger = container.parentElement?.querySelector('.font-size-trigger span');
+        if (trigger) trigger.textContent = `${s}`;
+        container.classList.remove('visible');
+      });
+      container.appendChild(item);
+    });
+  }
+
+  /** Toggle lock state for the currently selected drawing. */
+  _toggleToolLock(event) {
+    if (this.areDrawingsLocked()) {
+      this.unlockAllDrawings();
+    } else if (this._corePlugin && typeof this._corePlugin.lockAllDrawings === 'function') {
+      this._corePlugin.lockAllDrawings();
+    }
+    const btn = event.target && event.target.closest ? event.target.closest('.tool-btn') : null;
+    if (btn) {
+      const nowLocked = this.areDrawingsLocked();
+      btn.classList.toggle('active', nowLocked);
+      btn.title = nowLocked ? 'Unlock' : 'Lock';
+    }
+  }
+// --- Drag behaviour ---
+
+  /** Begin dragging the floating toolbar popup. */
+  _startDrag(event) {
+    if (!this._popupEl || event.button !== 0) return;
+    event.preventDefault();
+    this._dragTarget = this._popupEl;
+    this._dragStartX = event.clientX;
+    this._dragStartY = event.clientY;
+    const rect = this._popupEl.getBoundingClientRect();
+    this._dragPopupStartLeft = rect.left;
+    this._dragPopupStartTop = rect.top;
+    document.addEventListener('mousemove', this._onDragMove);
+    document.addEventListener('mouseup', this._onDragEnd);
+  }
+
+  /** Bound handler for mousemove during a drag. */
+  _onDragMove = (event) => {
+    if (!this._dragTarget) return;
+    const dx = event.clientX - this._dragStartX;
+    const dy = event.clientY - this._dragStartY;
+    const rect = this._dragTarget.getBoundingClientRect();
+    const left = Math.max(0, Math.min(window.innerWidth - rect.width, this._dragPopupStartLeft + dx));
+    const top = Math.max(0, Math.min(window.innerHeight - rect.height, this._dragPopupStartTop + dy));
+    this._dragTarget.style.left = `${left}px`;
+    this._dragTarget.style.top = `${top}px`;
+  };
+
+  /** Bound handler for mouseup — ends the drag. */
+  _onDragEnd = () => {
+    if (!this._dragTarget) return;
+    document.removeEventListener('mousemove', this._onDragMove);
+    document.removeEventListener('mouseup', this._onDragEnd);
+    this._dragTarget = null;
+  };
+
+  /** Refresh popup preview values from the currently selected tool options. */
+  _refreshPopupValues() {
+    if (!this._popupEl || !this._selectedLineToolData) return;
+    const opts = (this._selectedLineToolData.options) || {};
+    const lineOpts = opts.line || {};
+    const color = typeof lineOpts.color === 'string' ? lineOpts.color : null;
+    this._popupEl.querySelectorAll('.fill-btn-color').forEach((bar) => {
+      if (color) bar.style.backgroundColor = color;
+    });
+    const width = typeof lineOpts.width === 'number' ? lineOpts.width : null;
+    if (width !== null) {
+      const preview = this._popupEl.querySelector('.stroke-width-preview');
+      const text = this._popupEl.querySelector('.stroke-width-trigger span:last-child');
+      if (preview) preview.style.height = `${Math.max(1, width)}px`;
+      if (text) text.textContent = `${width}px`;
+    }
+    const lockBtn = this._popupEl.querySelector('.tool-btn[title="Lock"], .tool-btn[title="Unlock"]');
+    if (lockBtn) {
+      const nowLocked = this.areDrawingsLocked();
+      lockBtn.classList.toggle('active', nowLocked);
+      lockBtn.title = nowLocked ? 'Unlock' : 'Lock';
+    }
   }
 
   _showPopup() {
@@ -371,14 +690,7 @@ export class LineToolsCoreAdapter {
       return;
     }
     const el = this._ensurePopupEl();
-    const opts = (this._selectedLineToolData && this._selectedLineToolData.options) || {};
-    const line = opts.line || {};
-    if (this._popupColorInput && typeof line.color === 'string') {
-      this._popupColorInput.value = line.color;
-    }
-    if (this._popupWidthEl && typeof line.width === 'number') {
-      this._popupWidthEl.value = String(line.width);
-    }
+    this._refreshPopupValues();
     let rect = null;
     if (this._chart && typeof this._chart.chartElement === 'function') {
       const chartEl = this._chart.chartElement();
@@ -390,12 +702,14 @@ export class LineToolsCoreAdapter {
     const top = rect ? rect.top + 12 : 12;
     el.style.left = `${Math.max(0, left)}px`;
     el.style.top = `${top}px`;
-    el.style.display = 'block';
+    // Keep display:inline-flex from CSS; toggle the .hidden class like the legacy toolbar.
+    el.classList.remove('hidden');
   }
 
   _hidePopup() {
     if (this._popupEl) {
-      this._popupEl.style.display = 'none';
+      this._popupEl.classList.add('hidden');
+      this._closeAllDropdowns();
     }
   }
 
@@ -403,9 +717,13 @@ export class LineToolsCoreAdapter {
     if (this._popupEl && this._popupEl.parentNode) {
       this._popupEl.parentNode.removeChild(this._popupEl);
     }
+    this._closeAllDropdowns();
+    if (this._dragTarget) {
+      document.removeEventListener('mousemove', this._onDragMove);
+      document.removeEventListener('mouseup', this._onDragEnd);
+      this._dragTarget = null;
+    }
     this._popupEl = null;
-    this._popupColorInput = null;
-    this._popupWidthEl = null;
   }
   /**
    * Lock all drawings to prevent dragging/moving.
