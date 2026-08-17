@@ -96,7 +96,7 @@ export class LineToolsCoreAdapter {
    * @returns {void}
    */
   _subscribeFinish() {
-    if (!this._corePlugin || !this._onToolUsed) {
+    if (!this._corePlugin) {
       return;
     }
     if (typeof this._corePlugin.subscribeLineToolsAfterEdit !== 'function') {
@@ -112,7 +112,7 @@ export class LineToolsCoreAdapter {
       // 'pathFinished' => the path-tool analog. 'lineToolEdited' (point drag)
       // is intentionally ignored so editing an existing tool won't deselect.
       if (event && (event.stage === 'lineToolFinished' || event.stage === 'pathFinished')) {
-        this._onToolUsed();
+        if (typeof this._onToolUsed === 'function') { this._onToolUsed(); }
       }
     };
     this._corePlugin.subscribeLineToolsAfterEdit(this._afterEditHandler);
@@ -407,6 +407,7 @@ export class LineToolsCoreAdapter {
     this._popupColorInput = null;
     this._popupWidthEl = null;
   }
+  /**
    * Lock all drawings to prevent dragging/moving.
    * @returns {void}
    */
