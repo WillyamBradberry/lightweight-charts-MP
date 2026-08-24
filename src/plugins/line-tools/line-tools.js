@@ -5331,7 +5331,26 @@ class es extends Gt {
   _lastClickTime = 0;
   _lastClickPoint = null;
   // Context menu handler reference (ML-8)
-  _contextMenuHandler = null;
+  /**
+   * Context menu handler for right-click on tools (deletion)
+   */
+  handleContextMenuDelete = (event) => {
+    console.log('[LineTools] handleContextMenuDelete called');
+    console.log('[LineTools] event:', event);
+    console.log('[LineTools] _selectedTool:', this._selectedTool);
+    console.log('[LineTools] _tools:', this._tools);
+    console.log('[LineTools] _isRightClick:', this._isRightClick);
+    
+    // Prevent default browser context menu
+    event.preventDefault();
+    
+    if (this._selectedTool) {
+      console.log('[LineTools] Deleting selected tool:', this._selectedTool.toolType || 'Unknown');
+      this.deleteTool(this._selectedTool, true);
+    } else {
+      console.warn('[LineTools] No selected tool to delete on right-click');
+    }
+  };
   _userPriceAlerts = null;
   _alertNotifications = null;
   _toolbar = null;
@@ -5415,7 +5434,9 @@ class es extends Gt {
   attached(t) {
     super.attached(t), this.chart.subscribeClick(this._clickHandler), this.chart.subscribeCrosshairMove(this._moveHandler);
     const e = this.chart.chartElement?.();
-    e && (e.addEventListener("mousedown", this._mouseDownHandler), e.addEventListener("mouseup", this._mouseUpHandler), this._contextMenuHandler = (i) => i.preventDefault(), e.addEventListener("contextmenu", this._contextMenuHandler)), window.addEventListener("mousemove", this._rawMouseMoveHandler), window.addEventListener("keydown", this._keyDownHandler), this._userPriceAlerts = new Di(), this.series.attachPrimitive(this._userPriceAlerts), this._alertNotifications = new Hi(this), this._alertSubscription = this._userPriceAlerts.alertTriggered().subscribe((i) => {
+    console.log('[LineTools] LineManager.attached called');
+    console.log('[LineTools] _contextMenuHandler:', typeof this.handleContextMenuDelete);
+    e && (e.addEventListener("mousedown", this._mouseDownHandler), e.addEventListener("mouseup", this._mouseUpHandler), e.addEventListener("contextmenu", this.handleContextMenuDelete.bind(this))), window.addEventListener("mousemove", this._rawMouseMoveHandler), window.addEventListener("keydown", this._keyDownHandler), this._userPriceAlerts = new Di(), this.series.attachPrimitive(this._userPriceAlerts), this._alertNotifications = new Hi(this), this._alertSubscription = this._userPriceAlerts.alertTriggered().subscribe((i) => {
       this._alertNotifications?.show({
         alertId: i.alertId,
         symbol: "BTCUSD",
@@ -5435,8 +5456,9 @@ class es extends Gt {
   }
   detached() {
     window.removeEventListener("mousemove", this._rawMouseMoveHandler), window.removeEventListener("keydown", this._keyDownHandler), this.chart.unsubscribeClick(this._clickHandler), this.chart.unsubscribeCrosshairMove(this._moveHandler);
+    console.log('[LineTools] LineManager.detached called');
     const t = this.chart.chartElement?.();
-    t && (t.removeEventListener("mousedown", this._mouseDownHandler), t.removeEventListener("mouseup", this._mouseUpHandler), this._contextMenuHandler && (t.removeEventListener("contextmenu", this._contextMenuHandler), this._contextMenuHandler = null)), this._alertSubscription && (this._alertSubscription.unsubscribe(this), this._alertSubscription = null), this._tools.forEach((e) => {
+    t && (t.removeEventListener("mousedown", this._mouseDownHandler), t.removeEventListener("mouseup", this._mouseUpHandler), t.removeEventListener("contextmenu", this.handleContextMenuDelete.bind(this))), this._alertSubscription && (this._alertSubscription.unsubscribe(this), this._alertSubscription = null), this._tools.forEach((e) => {
       try {
         this.series.detachPrimitive(e);
       } catch (i) {

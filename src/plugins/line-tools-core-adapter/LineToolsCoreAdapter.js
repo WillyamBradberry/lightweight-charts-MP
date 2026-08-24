@@ -61,6 +61,8 @@ export class LineToolsCoreAdapter {
     this._dragStartY = 0;
     this._dragPopupStartLeft = 0;
     this._dragPopupStartTop = 0;
+    // Legacy compatibility: array of drawing primitives (used by handleContextMenu)
+    this._tools = [];
   }
 
   /**

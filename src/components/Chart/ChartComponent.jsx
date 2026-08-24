@@ -787,8 +787,83 @@ const ChartComponent = forwardRef(({
 
         chartInstance.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleTimeRangeChange);
 
+        /**
+         * Удаляет фигуру из chart в зависимости от типа инструмента
+         */
+        const deleteFigure = (manager, tool, index) => {
+            if (!manager || !tool) return;
+
+            // Получаем тип инструмента для истории
+            const toolType = tool.toolType || 'None';
+
+            // Записываем удаление в историю (если история включена)
+            if (manager._historyManager && !manager._historyManager.isRecordingDisabled()) {
+                manager._historyManager.recordDelete(tool, toolType);
+            }
+
+            // Удаляем пользовательские алерты, связанные с инструментом
+            if (tool._alertId) {
+                manager._userPriceAlerts?.removeAlert(tool._alertId);
+            }
+
+            // Открепляем инструмент от серии и удаляем из массива инструментов
+            manager.series.detachPrimitive(tool);
+            const toolsArray = manager._tools;
+            if (index !== -1 && index < toolsArray.length) {
+                toolsArray.splice(index, 1);
+            }
+
+            // Скрываем панель инструментов и обновляем состояние
+            manager._toolbar?.hide();
+            manager.requestUpdate();
+        };
+
         const handleContextMenu = (event) => {
             event.preventDefault();
+
+            // Если активен инструмент удаления, просто сбрасываем его
+            if (activeToolRef.current === 'eraser') {
+                if (onToolUsed) onToolUsed();
+                return;
+            }
+
+            // Отменяем текущую операцию перетаскивания при ПКМ
+            if (lineToolManagerRef.current && lineToolManagerRef.current._dragState) {
+                lineToolManagerRef.current._cancelActiveDrawing();
+            }
+
+            // Hit-test для определения, на какую фигуру кликнули
+            const chartElement = chartInstance?.chartElement();
+            if (!chartElement || !lineToolManagerRef.current) return;
+
+            const rect = chartElement.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            // Проверяем, находится ли курсор над какой-либо фигурой
+            let hitResult = null;
+            const toolsArray = lineToolManagerRef.current?._tools;
+            if (toolsArray) {
+                for (let i = toolsArray.length - 1; i >= 0; i--) {
+                    const tool = toolsArray[i];
+                    if (tool.toolHitTest) {
+                        const result = tool.toolHitTest(x, y);
+                        if (result?.hit) {
+                            hitResult = { tool, index: i };
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Если фигура найдена - удаляем её
+            if (hitResult) {
+                const { tool, index } = hitResult;
+                deleteFigure(lineToolManagerRef.current, tool, index);
+                return;
+            }
+
+            // Если активен инструмент (кроме курсора), сбрасываем его
             if (activeToolRef.current && activeToolRef.current !== 'cursor') {
                 if (onToolUsed) onToolUsed();
             }

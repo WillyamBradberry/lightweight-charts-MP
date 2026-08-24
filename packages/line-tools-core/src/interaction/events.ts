@@ -35,6 +35,23 @@ export function handleMouseDown(this: any, event: MouseEvent): void {
 	const point = this._eventToPoint(event);
 	if (!point) { return; }
 
+	// Right-click (button === 2): delete the shape under the cursor.
+	// Works whether the hit is on the shape body or on a drag anchor point,
+	// because the hit test returns the same tool for both.
+	if (event.button === 2) {
+		// Do not delete while actively creating a new tool.
+		if (this._currentToolCreating) { return; }
+
+		const rightClickHit = this._hitTest(point);
+		if (rightClickHit?.tool) {
+			// Suppress the browser's native context menu when deleting a shape.
+			event.preventDefault();
+			this._plugin.removeLineToolsById([rightClickHit.tool.id()]);
+			this._plugin.requestUpdate();
+		}
+		return; // Right click never starts creation/selection/drag.
+	}
+
 	// Reset drag/click state
 	this._isDrag = false;
 	this._mouseDownPoint = point;
